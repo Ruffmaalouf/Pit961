@@ -57,3 +57,66 @@ isolation, or secrets handling.
   this phase.
 
 **Next:** WP-2 — Backend Solution Scaffold (Backend Engineer), in progress.
+
+---
+
+## 2026-08-27 — WP-2 complete
+
+**PostgreSQL 15+ (KI-1) resolved per Owner direction** — installed user-locally
+without root via official PGDG `.deb` packages extracted with `dpkg-deb -x`
+(real PostgreSQL 15.19, no downgrade, no Docker/Testcontainers, no
+SQLite/EF-InMemory substitute; nothing added to the repository). See
+`KNOWN_ISSUES.md` KI-1 for the full method and rationale.
+
+**WP-2 — Backend Solution Scaffold: DONE.** `backend/GarageOS.sln` +
+`GarageOS.Api`/`GarageOS.Application`/`GarageOS.Domain`/`GarageOS.Infrastructure`
++ `GarageOS.Tests.Unit`/`GarageOS.Tests.Integration`, per §4 of
+`11_engineering_handoff.md`. Commit `a6bb20a`.
+
+- Serilog (console, config-driven), Swagger/OpenAPI, `/health` health check,
+  global ProblemDetails exception handling via `IExceptionHandler`.
+- `DemoOptions` demonstrates the strongly-typed options/configuration-binding
+  pattern later WPs (JwtOptions in WP-4, BrandingOptions in WP-7) will follow.
+- Verified live: `dotnet build` clean (0 warnings/errors); `dotnet run` serves
+  Swagger UI (200) and `/health` (200); `/api/demo/config` reflects the
+  configured `Demo:Message` value (proves options binding is not hardcoded);
+  `/api/diagnostics/throw` (Development/Testing only) returns a proper
+  `application/problem+json` ProblemDetails envelope (500) with the exception
+  message included only because Development.
+- **Test results: 4/4 passing** — `GarageOS.Tests.Unit` (2/2, options-binding)
+  and `GarageOS.Tests.Integration` (2/2, health check + ProblemDetails shape)
+  run against the real local PostgreSQL 15.19 instance above via
+  `WebApplicationFactory` + Respawn. Unreachable-DB path also verified
+  separately: both integration tests fail loudly with a clear Npgsql
+  connection-refused error when Postgres isn't running — 0 skipped, exactly
+  per WP-2's "never silently skip" requirement.
+- `.gitignore` corrected: `appsettings.Development.json` was being excluded
+  from git, contradicting WP-2's own acceptance criteria that it must be
+  *committed* with safe non-secret defaults — fixed to track it while still
+  excluding `appsettings.Local.json`/`.env` (the actual secret-bearing files).
+
+**AGENT ACTIVITY**
+
+- **AGENT INVOKED: QA Automation Engineer** — Task: validate the WP-2 test
+  harness against all four of WP-2's database-handling sub-requirements
+  (env/config-only connection string, fail-loud on unreachable DB, Respawn
+  reset excluding `__EFMigrationsHistory`, non-parallel collections).
+  Status: **Complete — PASS.** One non-blocking note: add a test asserting
+  the ProblemDetails `exception` field is absent outside Development
+  (tracked as `KNOWN_ISSUES.md` KI-4).
+- **AGENT INVOKED: Security Reviewer** — Task: WP-2's security-review
+  requirement (no committed secrets, env-var override works, dev/prod secret
+  mechanisms documented, `.gitignore` correctness, plus an ad-hoc check that
+  the test-only `/api/diagnostics/throw` endpoint can never reach Production).
+  Status: **Complete — PASS.** One non-blocking LOW note: `/api/demo/config`
+  ships unauthenticated and should be removed once real endpoints exist
+  (tracked as `KNOWN_ISSUES.md` KI-3).
+- **Not needed for WP-2:** Technical Architect (WP-2 has no architecture
+  decisions beyond what WP-1/handoff §4 already specify), Database Engineer
+  (no schema in WP-2 — that's WP-3), Frontend/Integration/DevOps Engineers
+  (out of WP-2's scope).
+
+**Next:** WP-3 — Database Schema & Tenant Isolation (Database Engineer +
+Backend Engineer), and WP-7 (Branding Configuration) / the frontend-tooling
+half of WP-8 can run in parallel once picked up, per the approved dependency
+graph.

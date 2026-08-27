@@ -8,7 +8,7 @@ acceptance criteria per WP, and `PROGRESS.md` for narrative status.
 |----|-------|------------|--------|-------------------|
 | WP-1 | Repo & Environment Bootstrap | Technical Architect | **DONE** | Repo root: `.git/`, `.gitignore` (hardened), `README.md`, `frontend/`, `backend/`. Initial commit `ba3ee96`. |
 | WP-10 | Engineering Tracking Docs | Dispatcher / Technical Architect | **DONE** | This file + `PROGRESS.md`, `TEST_STATUS.md`, `KNOWN_ISSUES.md` (repo root). |
-| WP-2 | Backend Solution Scaffold | Backend Engineer | **IN PROGRESS** | `backend/` — ASP.NET Core 8 modular monolith (Api/Application/Domain/Infrastructure) + `GarageOS.Tests.Unit`/`GarageOS.Tests.Integration`. |
+| WP-2 | Backend Solution Scaffold | Backend Engineer | **DONE** | `backend/` — ASP.NET Core 8 modular monolith (`GarageOS.Api`/`GarageOS.Application`/`GarageOS.Domain`/`GarageOS.Infrastructure`) + `GarageOS.Tests.Unit`/`GarageOS.Tests.Integration`. Commit `a6bb20a`. QA: PASS (QA Automation Engineer). Security: PASS (Security Reviewer). |
 | WP-3 | Schema / Tenant Isolation | Database Engineer + Backend Engineer | NOT STARTED | `backend/src/Infrastructure` (EF Core), migrations. Depends on WP-2. |
 | WP-3B | Account/Garage Provisioning Service | Backend Engineer + Database Engineer | NOT STARTED | Depends on WP-3. |
 | WP-4 | Authentication / JWT / Platform Admin claim | Backend Engineer | NOT STARTED | Depends on WP-3. |
