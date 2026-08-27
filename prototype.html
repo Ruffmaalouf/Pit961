@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d0e;color:#e6e9ea;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#e2892f;text-decoration:none}a:hover{color:#f0a458}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#2a3034;border-radius:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes lamp{0%,100%{opacity:.9}50%{opacity:.62}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;position:relative">
+  <div style="{{ bgLayerStyle }}"></div>
+  <div style="{{ bgGrainStyle }}"></div>
+  <svg viewBox="0 0 400 160" style="position:fixed;right:-30px;bottom:-30px;width:860px;height:344px;opacity:.06;pointer-events:none;z-index:0" fill="none" stroke="#ffffff" stroke-width="1.6">
+    <path d="M20,120 L20,100 Q20,80 40,75 L90,55 Q120,40 160,40 L240,40 Q270,40 290,60 L340,80 Q380,85 380,105 L380,120 Z"></path>
+    <path d="M100,75 L130,45 L220,45 L248,72"></path>
+    <line x1="20" y1="120" x2="380" y2="120"></line>
+    <circle cx="95" cy="122" r="24"></circle>
+    <circle cx="300" cy="122" r="24"></circle>
+    <circle cx="95" cy="122" r="9"></circle>
+    <circle cx="300" cy="122" r="9"></circle>
+  </svg>
+  <div style="width:76px;flex:0 0 76px;background:linear-gradient(180deg,#111517,#0d1112);border-right:1px solid #1e2225;display:flex;flex-direction:column;align-items:center;padding:13px 0 14px;position:sticky;top:0;height:100vh;z-index:2">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+      <div style="width:36px;height:36px;border-radius:11px;background:linear-gradient(160deg,#f0a458,#d2761d);box-shadow:0 2px 10px #e2892f40,inset 0 1px 0 #ffd3a0;display:flex;align-items:center;justify-content:center;font-weight:700;color:#160d04;font-size:15px;letter-spacing:-.02em">R</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:7.5px;letter-spacing:.16em;color:#4f585d">RASHID</div>
+    </div>
+    <div style="margin-top:12px;width:34px;height:1px;background:linear-gradient(90deg,transparent,#252c30,transparent)"></div>
+    <div style="margin-top:13px;display:flex;flex-direction:column;gap:3px;width:100%;align-items:center">
+      <sc-for list="{{ rail }}" as="r" hint-placeholder-count="8">
+        <div onClick="{{ r.go }}" style="{{ r.style }}" style-hover="background:#171c1f">
+          <div style="{{ r.blade }}"></div>
+          <div style="height:17px;display:flex;align-items:flex-end"><div style="{{ r.glyph }}"></div></div>
+          <div style="{{ r.labelStyle }}">{{ r.label }}</div>
+          <div style="{{ r.badge }}">{{ r.count }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:11px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:7.5px;letter-spacing:.14em;color:#485156">UPTIME</div>
+        <div style="display:flex;align-items:flex-end;gap:2px;height:15px">
+          <div style="width:3px;height:38%;background:#2c3438;border-radius:1px"></div>
+          <div style="width:3px;height:62%;background:#39434a;border-radius:1px"></div>
+          <div style="width:3px;height:82%;background:#59a97a;border-radius:1px"></div>
+          <div style="width:3px;height:54%;background:#39434a;border-radius:1px"></div>
+          <div style="width:3px;height:100%;background:#59a97a;border-radius:1px"></div>
+        </div>
+      </div>
+      <div style="width:34px;height:1px;background:linear-gradient(90deg,transparent,#252c30,transparent)"></div>
+      <div style="width:30px;height:30px;border-radius:9px;background:#1b2023;border:1px solid #262c30;display:flex;align-items:center;justify-content:center;font-size:11px;font-family:'IBM Plex Mono',monospace;color:#8b959b;cursor:pointer" style-hover="border-color:#3a4247">?</div>
+      <div style="position:relative;width:32px;height:32px;border-radius:50%;background:linear-gradient(160deg,#2c343a,#1d2327);box-shadow:inset 0 0 0 1px #333c42;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#c8d0d4;cursor:pointer">RM
+        <div style="position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;background:#59a97a;border:2px solid #0f1213"></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;position:relative;z-index:1">
+    <div style="height:52px;flex:0 0 52px;background:#0f1213;border-bottom:1px solid #1e2225;display:flex;align-items:center;gap:14px;padding:0 18px;position:sticky;top:0;z-index:30">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;color:#5f696e">{{ crumb }}</div>
+      <div onClick="{{ openCmd }}" style="margin-left:8px;flex:1;max-width:480px;height:32px;border:1px solid #232a2e;border-radius:8px;background:#14181a;display:flex;align-items:center;gap:9px;padding:0 11px;cursor:pointer;font-size:13px;color:#6c757a" style-hover="border-color:#31383d">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4f585d;flex:0 0 auto">⌘K</span>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Jump to plate, VIN, job, invoice — or type a command</span>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+        <div style="display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7c858c"><div style="width:6px;height:6px;border-radius:50%;background:#59a97a;animation:pulse 2.4s infinite"></div>LIVE · 14:36</div>
+        <div style="display:flex;gap:1px;background:#1a1e21;border:1px solid #242a2e;border-radius:8px;padding:2px">
+          <sc-for list="{{ roles }}" as="r" hint-placeholder-count="3">
+            <div onClick="{{ r.pick }}" style="{{ r.style }}">{{ r.name }}</div>
+          </sc-for>
+        </div>
+        <div onClick="{{ goAlerts }}" title="Alerts" style="position:relative;width:32px;height:30px;border:1px solid #242a2e;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="border-color:#3a4247">
+          <div style="position:relative;width:13px;height:12px;border-radius:7px 7px 2px 2px;border:1.5px solid #c8d0d4;border-bottom:none;box-shadow:inset 0 -1px 0 #c8d0d4">
+            <div style="position:absolute;left:-4px;right:-4px;bottom:-2px;height:1.5px;border-radius:1px;background:#c8d0d4"></div>
+            <div style="position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);width:4px;height:3px;border-radius:0 0 3px 3px;background:#c8d0d4"></div>
+            <div style="position:absolute;left:50%;top:-3px;transform:translateX(-50%);width:3px;height:2px;border-radius:2px 2px 0 0;background:#c8d0d4"></div>
+          </div>
+          <span style="position:absolute;top:-5px;right:-5px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#d1564c;border:2px solid #0f1213;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:#160705;display:flex;align-items:center;justify-content:center">4</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:1120px;padding:18px 18px 40px">
+
+      <sc-if value="{{ isOps }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Floor control</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">TUE 25 AUG · 18 ON SITE · 6 PROMISED BEFORE 17:00 · 2 AT RISK</div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <div onClick="{{ goJob }}" style="height:32px;padding:0 14px;border-radius:8px;background:#e2892f;color:#160e04;font-size:13px;font-weight:600;display:flex;align-items:center;cursor:pointer" style-hover="background:#f0a458">Check in vehicle</div>
+            <div onClick="{{ goBoard }}" style="height:32px;padding:0 14px;border-radius:8px;border:1px solid #262c30;background:#14181a;color:#c8d0d4;font-size:13px;font-weight:500;display:flex;align-items:center;cursor:pointer">Promise clock</div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:1px;background:#1c2124;border:1px solid #1e2225;border-radius:11px;overflow:hidden">
+          <sc-for list="{{ meters }}" as="m" hint-placeholder-count="6">
+            <div style="flex:1;background:#101416;padding:12px 14px;min-width:0">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;color:#5f696e">{{ m.label }}</div>
+              <div style="display:flex;align-items:baseline;gap:7px;margin-top:6px">
+                <div style="{{ m.valStyle }}">{{ m.value }}</div>
+                <div style="{{ m.deltaStyle }}">{{ m.delta }}</div>
+              </div>
+              <div style="margin-top:9px;height:3px;background:#1d2225;border-radius:2px;overflow:hidden"><div style="{{ m.bar }}"></div></div>
+              <div style="font-size:11px;color:#666f74;margin-top:7px">{{ m.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top:14px;background:#101416;border:1px solid #1e2225;border-radius:12px;overflow:hidden">
+          <div style="padding:15px 16px 13px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <div style="font-size:14px;font-weight:600">Shop hall</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5f696e;letter-spacing:.08em">6 OF 8 BAYS OCCUPIED · LIFT HEIGHT = PROGRESS</div>
+            </div>
+            <div style="display:flex;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;color:#5f696e">
+              <div style="display:flex;align-items:center;gap:5px"><div style="width:6px;height:6px;border-radius:2px;background:#58a6c8"></div>WORKING</div>
+              <div style="display:flex;align-items:center;gap:5px"><div style="width:6px;height:6px;border-radius:2px;background:#c98a2f"></div>BLOCKED</div>
+              <div style="display:flex;align-items:center;gap:5px"><div style="width:6px;height:6px;border-radius:2px;background:#d1564c"></div>LATE</div>
+              <div style="display:flex;align-items:center;gap:5px"><div style="width:6px;height:6px;border-radius:2px;background:#8b7bd6"></div>QC</div>
+            </div>
+          </div>
+          <div style="position:relative;height:242px;background:linear-gradient(180deg,#0c1214 0%,#090d0e 58%,#070a0b 100%);border-top:1px solid #1a1f22;border-bottom:1px solid #1a1f22;overflow:hidden">
+            <div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,#111819 0 1px,transparent 1px 64px)"></div>
+            <div style="position:absolute;left:0;right:0;top:0;height:7px;background:repeating-linear-gradient(90deg,#1d2427 0 2px,#0d1213 2px 11px);border-bottom:1px solid #1b2124"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;height:52px;background:linear-gradient(180deg,#0f1516,#0b1011 55%,#0d1314);border-top:1px solid #2b3337"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;height:5px;background:repeating-linear-gradient(45deg,#8a6a2a55 0 5px,#0d1112 5px 10px)"></div>
+            <div style="position:absolute;inset:0;display:flex">
+              <sc-for list="{{ bays }}" as="b" hint-placeholder-count="8">
+              <div onClick="{{ b.go }}" style="{{ b.col }}">
+                <div style="{{ b.cone }}"></div>
+                <div style="{{ b.lamp }}"><div style="{{ b.bulb }}"></div></div>
+                <div style="{{ b.pool }}"></div>
+                <div style="{{ b.postL }}"></div>
+                <div style="{{ b.postR }}"></div>
+                <div style="{{ b.baseL }}"></div>
+                <div style="{{ b.baseR }}"></div>
+                <div style="{{ b.shadow }}"></div>
+                <div style="{{ b.carriage }}">
+                  <div style="{{ b.carWrap }}">
+                    <div style="{{ b.carSil }}"></div>
+                    <div style="{{ b.carGlass }}"></div>
+                    <div style="{{ b.carPillar }}"></div>
+                    <div style="{{ b.carShoulder }}"></div>
+                    <div style="{{ b.headlight }}"></div>
+                    <div style="{{ b.taillight }}"></div>
+                    <div style="{{ b.wheelL }}"><div style="{{ b.hub }}"></div></div>
+                    <div style="{{ b.wheelR }}"><div style="{{ b.hub }}"></div></div>
+                  </div>
+                </div>
+                <div style="{{ b.pctTag }}">{{ b.pct }}</div>
+                <div style="{{ b.freeTag }}">AVAILABLE</div>
+                <div style="{{ b.bayTag }}">{{ b.bayNum }} · {{ b.kind }}</div>
+              </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex">
+            <sc-for list="{{ bays }}" as="b" hint-placeholder-count="8">
+              <div onClick="{{ b.go }}" style="{{ b.readCell }}" style-hover="background:#141a1c">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:#6c757a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.plateTag }}</div>
+                  <div style="{{ b.pill }}">{{ b.state }}</div>
+                </div>
+                <div style="{{ b.nameStyle }}">{{ b.veh }}</div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+                  <div style="font-size:11px;color:#7c858c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.tech }}</div>
+                  <div style="{{ b.etaStyle }}">{{ b.eta }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;display:grid;grid-template-columns:1.55fr 1fr;gap:14px;align-items:start">
+          <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:14px;font-weight:600">Act now</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e;letter-spacing:.09em">RANKED BY MONEY AT RISK</div>
+              </div>
+              <div style="margin-top:11px;display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ risks }}" as="r" hint-placeholder-count="5">
+                  <div onClick="{{ r.go }}" style="border:1px solid #1e2427;border-radius:9px;background:#0d1112;padding:10px 11px;cursor:pointer;display:flex;gap:10px;align-items:center" style-hover="border-color:#343c41">
+                    <div style="{{ r.stripe }}"></div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px;font-weight:600">{{ r.title }}</div>
+                      <div style="font-size:11.5px;color:#7c858c;margin-top:2px">{{ r.detail }}</div>
+                    </div>
+                    <div style="text-align:right">
+                      <div style="{{ r.amtStyle }}">{{ r.amount }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;color:#5f696e;margin-top:3px">{{ r.tag }}</div>
+                    </div>
+                    <div style="font-size:12px;font-weight:600;color:#e2892f;white-space:nowrap">{{ r.action }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+              <div style="font-size:14px;font-weight:600">Cash today</div>
+              <div style="margin-top:12px;display:flex;align-items:flex-end;gap:4px;height:62px">
+                <sc-for list="{{ cashBars }}" as="c" hint-placeholder-count="11">
+                  <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;height:100%">
+                    <div style="{{ c.collected }}"></div>
+                    <div style="{{ c.billed }}"></div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top:7px;display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e;letter-spacing:.08em"><span>08</span><span>12</span><span>NOW</span><span>19</span></div>
+              <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#7c858c">Billed</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600">$2,340</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#7c858c">Collected</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#59a97a">$1,980</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#7c858c">Uncollected on floor</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#d1564c">$360</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid #1c2124"><span style="color:#7c858c">Gross profit · 63%</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600">$1,470</span></div>
+              </div>
+            </div>
+        </div>
+
+        <div style="margin-top:14px;background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:baseline;gap:10px"><div style="font-size:14px;font-weight:600">Technician lanes</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5f696e;letter-spacing:.08em">BILLED VS CLOCK · 08:00–19:00</div></div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5f696e;letter-spacing:.08em">DRAG A BLOCK TO REASSIGN</div>
+          </div>
+          <div style="margin-top:13px;display:flex;flex-direction:column;gap:7px">
+            <sc-for list="{{ lanes }}" as="l" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div style="width:132px;flex:0 0 132px;display:flex;align-items:center;gap:9px">
+                  <div style="width:24px;height:24px;border-radius:50%;background:#232a2e;font-size:10px;font-weight:600;color:#c8d0d4;display:flex;align-items:center;justify-content:center">{{ l.initials }}</div>
+                  <div style="min-width:0"><div style="font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.name }}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e">{{ l.hours }}</div></div>
+                </div>
+                <div style="flex:1;height:30px;background:#0d1112;border:1px solid #1c2124;border-radius:7px;position:relative;overflow:hidden">
+                  <sc-for list="{{ l.blocks }}" as="b">
+                    <div style="{{ b.style }}">{{ b.label }}</div>
+                  </sc-for>
+                  <div style="{{ l.nowLine }}"></div>
+                </div>
+                <div style="width:62px;flex:0 0 62px;text-align:right"><div style="{{ l.utilStyle }}">{{ l.util }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        
+              </sc-if>
+
+      <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Promise clock</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">EVERY OPEN JOB PLACED BY WHEN IT WAS PROMISED · NOW 14:36</div>
+          </div>
+          <div style="display:flex;gap:1px;background:#1a1e21;border:1px solid #242a2e;border-radius:8px;padding:2px">
+            <sc-for list="{{ boardModes }}" as="m" hint-placeholder-count="2">
+              <div onClick="{{ m.pick }}" style="{{ m.style }}">{{ m.name }}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-if value="{{ modeClock }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:14px;background:#101416;border:1px solid #1e2225;border-radius:12px;padding:16px 18px 20px">
+            <div style="display:flex;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:#5f696e;padding-left:150px">
+              <sc-for list="{{ hours }}" as="h" hint-placeholder-count="11">
+                <div style="flex:1">{{ h.label }}</div>
+              </sc-for>
+            </div>
+            <div style="margin-top:9px;display:flex;flex-direction:column;gap:9px">
+              <sc-for list="{{ clockRows }}" as="r" hint-placeholder-count="7">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div style="width:138px;flex:0 0 138px;min-width:0">
+                    <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.veh }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e;margin-top:2px">{{ r.meta }}</div>
+                  </div>
+                  <div style="flex:1;height:34px;background:#0d1112;border:1px solid #1c2124;border-radius:8px;position:relative">
+                    <div style="{{ r.spanStyle }}">
+                      <div style="{{ r.stageDot }}"></div>
+                      <div style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.work }}</div>
+                      <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;opacity:.85">{{ r.stage }}</div>
+                    </div>
+                    <div style="{{ r.nowLine }}"></div>
+                    <div style="{{ r.flagStyle }}">{{ r.flag }}</div>
+                  </div>
+                  <div onClick="{{ r.go }}" style="width:74px;flex:0 0 74px;text-align:right;font-size:12px;font-weight:600;color:#e2892f;cursor:pointer">Open</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="margin-top:16px;padding-top:13px;border-top:1px solid #1c2124;display:flex;gap:20px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;color:#5f696e">
+              <div>BAR START = WORK BEGAN</div><div>BAR END = PROMISED</div><div style="color:#d1564c">RED = PAST PROMISE</div><div style="color:#c98a2f">AMBER = BLOCKED, CLOCK STILL RUNNING</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ modeStage }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:14px;display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;align-items:flex-start">
+            <sc-for list="{{ columns }}" as="col" hint-placeholder-count="7">
+              <div style="flex:0 0 244px;background:#0f1214;border:1px solid #1e2225;border-radius:11px;padding:10px">
+                <div style="display:flex;align-items:center;gap:8px;padding:2px 3px 9px">
+                  <div style="{{ col.dot }}"></div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.11em;color:#8b959b;flex:1">{{ col.title }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5f696e">{{ col.count }}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ col.jobs }}" as="j" hint-placeholder-count="2">
+                    <div onClick="{{ j.go }}" style="{{ j.card }}" style-hover="border-color:#3a4247">
+                      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+                        <div style="font-size:13.5px;font-weight:600;letter-spacing:-0.01em">{{ j.veh }}</div>
+                        <div style="{{ j.flagStyle }}">{{ j.flag }}</div>
+                      </div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e;margin-top:4px">{{ j.meta }}</div>
+                      <div style="font-size:12px;color:#aab3b8;margin-top:8px">{{ j.work }}</div>
+                      <div style="margin-top:9px;height:2px;background:#1c2124;border-radius:2px;overflow:hidden"><div style="{{ j.bar }}"></div></div>
+                      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+                        <div style="font-size:11px;color:#7c858c">{{ j.tech }}</div>
+                        <div style="{{ j.etaStyle }}">{{ j.eta }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isJob }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:236px 1fr 300px;gap:14px;align-items:start">
+          <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 14px;position:sticky;top:70px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">WORKFLOW</div>
+            <div style="margin-top:12px">
+              <sc-for list="{{ steps }}" as="s" hint-placeholder-count="9">
+                <div onClick="{{ s.go }}" style="display:flex;gap:11px;cursor:pointer">
+                  <div style="display:flex;flex-direction:column;align-items:center;width:14px">
+                    <div style="{{ s.dot }}"></div>
+                    <div style="{{ s.line }}"></div>
+                  </div>
+                  <div style="padding-bottom:13px;min-width:0;flex:1">
+                    <div style="{{ s.label }}">{{ s.name }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e;margin-top:2px">{{ s.stamp }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div onClick="{{ advance }}" style="margin-top:4px;height:36px;border-radius:9px;background:#e2892f;color:#160e04;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:#f0a458">{{ advanceLabel }}</div>
+          </div>
+
+          <div style="min-width:0;display:flex;flex-direction:column;gap:14px">
+            <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:17px 18px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+                <div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="font-size:22px;font-weight:600;letter-spacing:-0.02em">BMW 328i</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8b959b;background:#181d1f;border:1px solid #242a2e;padding:3px 7px;border-radius:6px">JOB-1842</div>
+                    <div style="{{ stagePill }}">{{ stageLabel }}</div>
+                  </div>
+                  <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:#8b959b">
+                    <div>2011 · <span style="font-family:'IBM Plex Mono',monospace;color:#c8d0d4">ABC 123</span></div>
+                    <div>91,850 km</div>
+                    <div><a href="#">John Smith</a> · (312) 555-0184</div>
+                    <div>Bay 3 · Ahmed Hassan</div>
+                  </div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.11em;color:#5f696e">TIME TO PROMISE</div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;margin-top:3px;color:#59a97a">2h 24m</div>
+                  <div style="font-size:11.5px;color:#6c757a;margin-top:2px">due 17:00 · 1.5h of work left</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:17px 18px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+                <div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">COMPLAINT · JOHN SMITH</div>
+                  <div style="margin-top:7px;font-size:14.5px;line-height:1.5;border-left:2px solid #e2892f;padding-left:11px">Vibration in the steering wheel between 80–100 km/h. Started two weeks ago.</div>
+                </div>
+                <div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">DIAGNOSIS · AHMED HASSAN 09:45</div>
+                  <div style="margin-top:7px;font-size:14.5px;line-height:1.5;border-left:2px solid #58a6c8;padding-left:11px">Play in both front control arm bushings. Tie rods and bearings check out. No stored codes.</div>
+                </div>
+              </div>
+              <div style="margin-top:16px;padding-top:14px;border-top:1px solid #1c2124;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">EVIDENCE</div>
+                <sc-for list="{{ evidence }}" as="e" hint-placeholder-count="4">
+                  <div style="width:74px;height:52px;border-radius:7px;background:repeating-linear-gradient(45deg,#161b1d,#161b1d 6px,#1c2225 6px,#1c2225 12px);border:1px solid #232a2e;display:flex;align-items:flex-end;padding:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:#6c757a">{{ e.label }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;overflow:hidden">
+              <div style="padding:14px 18px;border-bottom:1px solid #1c2124;display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:14px;font-weight:600">Work &amp; parts, one list</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.09em;color:#5f696e">{{ workSummary }}</div>
+              </div>
+              <sc-for list="{{ lines }}" as="l" hint-placeholder-count="4">
+                <div style="padding:13px 18px;border-bottom:1px solid #16191b;display:flex;align-items:center;gap:13px">
+                  <div style="{{ l.kind }}">{{ l.type }}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13.5px;font-weight:500">{{ l.name }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e;margin-top:3px">{{ l.meta }}</div>
+                  </div>
+                  <div style="{{ l.statusStyle }}">{{ l.status }}</div>
+                  <sc-if value="{{ showMoney }}" hint-placeholder-val="{{ true }}">
+                    <div style="width:150px;display:flex;justify-content:flex-end;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px">
+                      <span style="color:#6c757a">{{ l.cost }}</span>
+                      <span style="font-weight:600">{{ l.price }}</span>
+                    </div>
+                  </sc-if>
+                  <div onClick="{{ l.act }}" style="{{ l.actStyle }}">{{ l.action }}</div>
+                </div>
+              </sc-for>
+              <div style="padding:13px 18px;display:flex;align-items:center;gap:9px">
+                <div style="padding:7px 12px;border:1px dashed #2a3135;border-radius:8px;font-size:12.5px;color:#8b959b">＋ Part</div>
+                <div style="padding:7px 12px;border:1px dashed #2a3135;border-radius:8px;font-size:12.5px;color:#8b959b">＋ Labor</div>
+                <div style="padding:7px 12px;border:1px dashed #2a3135;border-radius:8px;font-size:12.5px;color:#8b959b">＋ Service</div>
+                <sc-if value="{{ showMoney }}" hint-placeholder-val="{{ true }}">
+                  <div style="margin-left:auto;display:flex;gap:22px;font-family:'IBM Plex Mono',monospace;font-size:12.5px">
+                    <span style="color:#6c757a">COST $110.00</span>
+                    <span style="color:#59a97a">MARGIN $125.00 · 53%</span>
+                    <span style="font-size:17px;font-weight:600">$235.00</span>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:70px">
+            <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:13.5px;font-weight:600">Money</div>
+                <div style="{{ roleTag }}">{{ roleLabel }}</div>
+              </div>
+              <sc-if value="{{ showMoney }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+                  <div style="display:flex;justify-content:space-between"><span style="color:#7c858c">Approved total</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600">$235.00</span></div>
+                  <div style="display:flex;justify-content:space-between"><span style="color:#7c858c">Collected</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#59a97a">{{ paidText }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding-top:9px;border-top:1px solid #1c2124"><span style="color:#7c858c">Balance</span><span style="{{ balanceStyle }}">{{ balanceText }}</span></div>
+                </div>
+                <div onClick="{{ openPay }}" style="{{ payBtn }}">{{ payLabel }}</div>
+                <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+                  <div style="padding:8px;border:1px solid #262c30;border-radius:8px;text-align:center;font-size:12px;color:#c8d0d4">WhatsApp</div>
+                  <div onClick="{{ deliver }}" style="padding:8px;border:1px solid #262c30;border-radius:8px;text-align:center;font-size:12px;color:#c8d0d4;cursor:pointer">Deliver</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ hideMoney }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:12px;padding:13px;border:1px solid #1e2427;border-radius:9px;background:#0d1112;font-size:12.5px;color:#7c858c;line-height:1.5">Prices and margins are hidden for technicians. You see the work, the parts and the promise time.</div>
+              </sc-if>
+            </div>
+
+            <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+              <div style="font-size:13.5px;font-weight:600">Part in transit</div>
+              <div style="margin-top:11px;font-size:13px;font-weight:500">Front control arm · qty 2</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e;margin-top:3px">OEM 31126769797 · MIDWAY AUTO PARTS</div>
+              <div style="margin-top:13px;display:flex;flex-direction:column;gap:0">
+                <sc-for list="{{ partSteps }}" as="p" hint-placeholder-count="5">
+                  <div style="display:flex;gap:10px;align-items:flex-start">
+                    <div style="display:flex;flex-direction:column;align-items:center;width:11px"><div style="{{ p.dot }}"></div><div style="{{ p.line }}"></div></div>
+                    <div style="padding-bottom:10px;flex:1;display:flex;justify-content:space-between;align-items:baseline">
+                      <div style="{{ p.label }}">{{ p.name }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e">{{ p.time }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div onClick="{{ advancePart }}" style="height:32px;border-radius:8px;border:1px solid #262c30;background:#14181a;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:#c8d0d4;cursor:pointer">{{ partAction }}</div>
+            </div>
+
+            <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+              <div style="font-size:13.5px;font-weight:600">Live feed</div>
+              <div style="margin-top:12px">
+                <sc-for list="{{ feed }}" as="f" hint-placeholder-count="6">
+                  <div style="display:flex;gap:10px">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e;width:38px;padding-top:2px">{{ f.time }}</div>
+                    <div style="width:1px;background:#1e2427;position:relative"><div style="{{ f.dot }}"></div></div>
+                    <div style="flex:1;padding-bottom:12px;font-size:12.5px;line-height:1.45;color:#c8d0d4">{{ f.text }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isAlerts }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:760px">
+          <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Alerts</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">EACH ONE CARRIES THE ACTION THAT CLEARS IT</div>
+          <div style="margin-top:14px;background:#101416;border:1px solid #1e2225;border-radius:12px;overflow:hidden">
+            <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="5">
+              <div onClick="{{ a.go }}" style="padding:14px 17px;border-bottom:1px solid #16191b;display:flex;align-items:center;gap:13px;cursor:pointer" style-hover="background:#131719">
+                <div style="{{ a.dot }}"></div>
+                <div style="flex:1"><div style="font-size:13.5px;font-weight:600">{{ a.title }}</div><div style="font-size:12px;color:#7c858c;margin-top:2px">{{ a.detail }}</div></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e">{{ a.time }}</div>
+                <div style="padding:6px 11px;border:1px solid #262c30;border-radius:8px;font-size:12px;font-weight:600;color:#e2892f">{{ a.action }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSoon }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:560px;margin:70px auto 0;text-align:center">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;color:#5f696e">NOT IN THIS PASS</div>
+          <div style="margin-top:12px;font-size:19px;font-weight:600">{{ soonTitle }}</div>
+          <div style="margin-top:9px;font-size:13.5px;color:#7c858c;line-height:1.6">v2 explores the new language on floor control, the promise clock and the job cockpit. Say the word and the rest follows the same system.</div>
+          <div onClick="{{ goOps }}" style="margin-top:18px;display:inline-block;padding:9px 17px;border-radius:9px;background:#e2892f;color:#160e04;font-size:13px;font-weight:600;cursor:pointer">Back to floor control</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCustomers }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Customers &amp; vehicles</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">248 CUSTOMERS · 312 VEHICLES ON FILE</div>
+          </div>
+          <div style="height:32px;padding:0 14px;border-radius:8px;background:#e2892f;color:#160e04;font-size:13px;font-weight:600;display:flex;align-items:center;cursor:pointer" style-hover="background:#f0a458">New customer</div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:1px;background:#1c2124;border:1px solid #1e2225;border-radius:11px;overflow:hidden">
+          <sc-for list="{{ custKpis }}" as="m" hint-placeholder-count="4">
+            <div style="flex:1;background:#101416;padding:12px 14px;min-width:0">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;color:#5f696e">{{ m.label }}</div>
+              <div style="{{ m.valStyle }}">{{ m.value }}</div>
+              <div style="font-size:11px;color:#666f74;margin-top:7px">{{ m.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px;background:#101416;border:1px solid #1e2225;border-radius:12px;overflow:hidden">
+          <sc-for list="{{ customers }}" as="c" hint-placeholder-count="6">
+            <div onClick="{{ c.go }}" style="padding:13px 17px;border-bottom:1px solid #16191b;display:flex;align-items:center;gap:14px;cursor:pointer" style-hover="background:#131719">
+              <div style="width:34px;height:34px;border-radius:50%;background:#1b2023;border:1px solid #262c30;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#c8d0d4;flex:0 0 34px">{{ c.initials }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13.5px;font-weight:600">{{ c.name }}</div>
+                <div style="font-size:11.5px;color:#7c858c;margin-top:2px">{{ c.vehicle }} · {{ c.plate }} · {{ c.phone }}</div>
+              </div>
+              <div style="width:110px;flex:0 0 110px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5f696e">{{ c.lastVisit }}</div>
+              <div style="width:70px;flex:0 0 70px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8b959b">{{ c.visits }}</div>
+              <div style="width:80px;flex:0 0 80px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600">{{ c.balance }}</div>
+              <div style="{{ c.tagStyle }}">{{ c.tag }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMoney }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Money</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">INVOICES, PAYMENTS AND RECEIVABLES</div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:1px;background:#1c2124;border:1px solid #1e2225;border-radius:11px;overflow:hidden">
+          <sc-for list="{{ moneyKpis }}" as="m" hint-placeholder-count="4">
+            <div style="flex:1;background:#101416;padding:12px 14px;min-width:0">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;color:#5f696e">{{ m.label }}</div>
+              <div style="{{ m.valStyle }}">{{ m.value }}</div>
+              <div style="font-size:11px;color:#666f74;margin-top:7px">{{ m.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px;background:#101416;border:1px solid #1e2225;border-radius:12px;overflow:hidden">
+          <div style="padding:14px 17px;border-bottom:1px solid #1c2124;display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:14px;font-weight:600">Invoices</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.09em;color:#5f696e">5 SHOWN · NEWEST FIRST</div>
+          </div>
+          <sc-for list="{{ invoices }}" as="i" hint-placeholder-count="5">
+            <div onClick="{{ i.go }}" style="padding:13px 17px;border-bottom:1px solid #16191b;display:flex;align-items:center;gap:14px;cursor:pointer" style-hover="background:#131719">
+              <div style="width:118px;flex:0 0 118px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8b959b">{{ i.num }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600">{{ i.customer }}</div>
+                <div style="font-size:11.5px;color:#7c858c;margin-top:2px">{{ i.vehicle }}</div>
+              </div>
+              <div style="{{ i.statusStyle }}">{{ i.status }}</div>
+              <div style="width:78px;flex:0 0 78px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600">{{ i.amount }}</div>
+              <div style="width:70px;flex:0 0 70px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e">{{ i.age }}</div>
+              <div style="width:64px;flex:0 0 64px;text-align:right;font-size:12px;font-weight:600;color:#e2892f">{{ i.action }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isParts }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Parts &amp; suppliers</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">INVENTORY, INCOMING ORDERS AND SUPPLIER STATUS</div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:1px;background:#1c2124;border:1px solid #1e2225;border-radius:11px;overflow:hidden">
+          <sc-for list="{{ partsKpis }}" as="m" hint-placeholder-count="4">
+            <div style="flex:1;background:#101416;padding:12px 14px;min-width:0">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;color:#5f696e">{{ m.label }}</div>
+              <div style="{{ m.valStyle }}">{{ m.value }}</div>
+              <div style="font-size:11px;color:#666f74;margin-top:7px">{{ m.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px;display:grid;grid-template-columns:1.3fr 1fr;gap:14px;align-items:start">
+          <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;overflow:hidden">
+            <div style="padding:14px 16px;border-bottom:1px solid #1c2124;font-size:14px;font-weight:600">Incoming</div>
+            <sc-for list="{{ partsIncoming }}" as="p" hint-placeholder-count="4">
+              <div style="padding:12px 16px;border-bottom:1px solid #16191b;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500">{{ p.name }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5f696e;margin-top:3px">{{ p.job }} · {{ p.supplier }}</div>
+                </div>
+                <div style="{{ p.statusStyle }}">{{ p.status }}</div>
+                <div style="width:60px;flex:0 0 60px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b959b">{{ p.eta }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+            <div style="font-size:14px;font-weight:600">Low stock</div>
+            <div style="margin-top:11px;display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ lowStock }}" as="s" hint-placeholder-count="4">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+                    <div style="font-size:12.5px;font-weight:500">{{ s.name }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#d1564c;font-weight:600">{{ s.onHand }}</div>
+                  </div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e;margin-top:3px">REORDER AT {{ s.reorder }} · {{ s.supplier }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTeam }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Team &amp; performance</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">TODAY'S CLOCK VS BILLED, AND THIS WEEK'S TRACK RECORD</div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:1px;background:#1c2124;border:1px solid #1e2225;border-radius:11px;overflow:hidden">
+          <sc-for list="{{ teamKpis }}" as="m" hint-placeholder-count="4">
+            <div style="flex:1;background:#101416;padding:12px 14px;min-width:0">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;color:#5f696e">{{ m.label }}</div>
+              <div style="{{ m.valStyle }}">{{ m.value }}</div>
+              <div style="font-size:11px;color:#666f74;margin-top:7px">{{ m.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px;background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:14px;font-weight:600">Technicians</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.09em;color:#5f696e">CLOCKED / BILLED · UTILIZATION · JOBS THIS WEEK</div>
+          </div>
+          <div style="margin-top:13px;display:flex;flex-direction:column;gap:11px">
+            <sc-for list="{{ teamPerf }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div style="width:150px;flex:0 0 150px;min-width:0">
+                  <div style="font-size:12.5px;font-weight:600">{{ t.name }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e;margin-top:2px">{{ t.role }}</div>
+                </div>
+                <div style="width:110px;flex:0 0 110px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8b959b">{{ t.clocked }} / {{ t.billed }}</div>
+                <div style="flex:1;height:8px;background:#0d1112;border:1px solid #1c2124;border-radius:4px;overflow:hidden"><div style="{{ t.bar }}"></div></div>
+                <div style="{{ t.utilStyle }}">{{ t.util }}</div>
+                <div style="width:70px;flex:0 0 70px;text-align:right;font-size:12px;color:#8b959b">{{ t.jobs }}</div>
+                <div style="width:90px;flex:0 0 90px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#59a97a">{{ t.onTime }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Reports</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#6c757a;margin-top:4px;letter-spacing:.04em">THIS WEEK, MON–SUN</div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:1px;background:#1c2124;border:1px solid #1e2225;border-radius:11px;overflow:hidden">
+          <sc-for list="{{ reportKpis }}" as="m" hint-placeholder-count="4">
+            <div style="flex:1;background:#101416;padding:12px 14px;min-width:0">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;color:#5f696e">{{ m.label }}</div>
+              <div style="{{ m.valStyle }}">{{ m.value }}</div>
+              <div style="font-size:11px;color:#666f74;margin-top:7px">{{ m.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px;display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start">
+          <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+            <div style="font-size:14px;font-weight:600">Revenue by day</div>
+            <div style="margin-top:16px;display:flex;align-items:flex-end;gap:10px;height:120px">
+              <sc-for list="{{ revBars }}" as="b" hint-placeholder-count="7">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+                  <div style="{{ b.bar }}"></div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#5f696e">{{ b.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#101416;border:1px solid #1e2225;border-radius:12px;padding:15px 16px">
+            <div style="font-size:14px;font-weight:600">Revenue by category</div>
+            <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ revCats }}" as="c" hint-placeholder-count="6">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:#aab3b8"><span>{{ c.name }}</span><span style="font-family:'IBM Plex Mono',monospace">{{ c.pct }}</span></div>
+                  <div style="margin-top:5px;height:5px;background:#0d1112;border-radius:3px;overflow:hidden"><div style="{{ c.bar }}"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ cmdOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeCmd }}" style="position:fixed;inset:0;background:rgba(6,8,9,.66);z-index:70;display:flex;justify-content:center;padding-top:88px">
+      <div style="width:640px;height:max-content;background:#0f1315;border:1px solid #262c30;border-radius:13px;box-shadow:0 40px 90px rgba(0,0,0,.6);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:11px;padding:14px 17px;border-bottom:1px solid #1c2124">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#e2892f">&gt;</span>
+          <div style="flex:1;font-family:'IBM Plex Mono',monospace;font-size:15px">abc 123</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4f585d">ESC</div>
+        </div>
+        <div style="padding:9px 17px 5px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">RECORDS</div>
+        <sc-for list="{{ cmdResults }}" as="r" hint-placeholder-count="4">
+          <div onClick="{{ r.go }}" style="padding:11px 17px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid #16191b" style-hover="background:#141819">
+            <div style="{{ r.tag }}">{{ r.kind }}</div>
+            <div style="flex:1"><div style="font-size:13px;font-weight:600">{{ r.title }}</div><div style="font-size:11.5px;color:#7c858c;margin-top:2px">{{ r.detail }}</div></div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5f696e">{{ r.meta }}</div>
+          </div>
+        </sc-for>
+        <div style="padding:11px 17px 5px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">COMMANDS ON THIS RECORD</div>
+        <sc-for list="{{ cmdActions }}" as="c" hint-placeholder-count="3">
+          <div onClick="{{ c.go }}" style="padding:10px 17px;display:flex;align-items:center;gap:12px;cursor:pointer" style-hover="background:#141819">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#e2892f;width:74px">{{ c.key }}</div>
+            <div style="flex:1;font-size:13px">{{ c.name }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4f585d">↵</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ payOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(6,8,9,.6);z-index:70;display:flex;justify-content:flex-end">
+      <div style="width:420px;background:#0f1315;border-left:1px solid #262c30;height:100%;padding:22px;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><div style="font-size:18px;font-weight:600">Record payment</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5f696e;margin-top:4px;letter-spacing:.07em">INV-2026-0521 · JOHN SMITH</div></div>
+          <div onClick="{{ closePay }}" style="font-size:20px;color:#6c757a;cursor:pointer">×</div>
+        </div>
+        <div style="margin-top:18px;border:1px solid #1e2427;border-radius:11px;background:#0c1011;padding:15px;display:flex;flex-direction:column;gap:8px;font-size:13px">
+          <div style="display:flex;justify-content:space-between"><span style="color:#7c858c">Invoice</span><span style="font-family:'IBM Plex Mono',monospace">$235.00</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#7c858c">Paid</span><span style="font-family:'IBM Plex Mono',monospace">{{ paidText }}</span></div>
+          <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid #1c2124"><span style="font-weight:600">Remaining</span><span style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600">{{ balanceText }}</span></div>
+        </div>
+        <div style="margin-top:18px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">AMOUNT</div>
+        <div style="margin-top:7px;display:flex;align-items:center;border:1px solid #e2892f;border-radius:10px;padding:12px 14px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:600">{{ payAmount }}</div>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <div onClick="{{ payHalf }}" style="padding:6px 10px;border:1px solid #262c30;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;cursor:pointer">150</div>
+            <div onClick="{{ payFull }}" style="padding:6px 10px;border:1px solid #262c30;border-radius:7px;font-size:11.5px;cursor:pointer">Full</div>
+          </div>
+        </div>
+        <div style="margin-top:18px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;color:#5f696e">METHOD</div>
+        <div style="margin-top:7px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px">
+          <sc-for list="{{ methods }}" as="m" hint-placeholder-count="4">
+            <div onClick="{{ m.pick }}" style="{{ m.style }}">{{ m.name }}</div>
+          </sc-for>
+        </div>
+        <div onClick="{{ recordPayment }}" style="margin-top:auto;height:46px;border-radius:11px;background:#59a97a;color:#08160e;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;cursor:pointer">Record payment</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#e2892f;color:#160e04;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:600;z-index:90">{{ toast }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1560,&quot;height&quot;:980},&quot;bgTexture&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;grid&quot;,&quot;blueprint&quot;,&quot;vignette&quot;,&quot;flat&quot;],&quot;default&quot;:&quot;grid&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Atmosphere&quot;},&quot;accentGlow&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Atmosphere&quot;},&quot;grain&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:12,&quot;min&quot;:0,&quot;max&quot;:40,&quot;step&quot;:2,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Atmosphere&quot;},&quot;lampAnimation&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Shop hall&quot;}}">
+class Component extends DCLogic {
+  STAGES = [
+    ['CHECKED IN', '#7c858c'], ['DIAGNOSING', '#8b7bd6'], ['WAITING APPROVAL', '#c98a2f'],
+    ['WAITING PARTS', '#d1564c'], ['REPAIRING', '#58a6c8'], ['QC', '#8b7bd6'],
+    ['READY', '#59a97a'], ['DELIVERED', '#7c858c']
+  ];
+  state = { screen: 'ops', stage: 3, role: 'Owner', mode: 'clock', part: 2, payments: [], payOpen: false, payAmt: 150, method: 'Cash', cmd: false, toast: '' };
+
+  componentDidMount() {
+    if (document.getElementById('__garageos-fonts')) return;
+    const link = document.createElement('link');
+    link.id = '__garageos-fonts';
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap';
+    document.head.appendChild(link);
+  }
+  toast(m) { this.setState({ toast: m }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2400); }
+  pill(c, size) { return 'display:inline-flex;align-items:center;white-space:nowrap;font-family:\'IBM Plex Mono\',monospace;font-size:' + (size || 9.5) + 'px;font-weight:600;letter-spacing:.09em;padding:3px 7px;border-radius:5px;color:' + c + ';background:' + c + '1f'; }
+
+  renderVals() {
+    const s = this.state;
+    const st = this.STAGES[s.stage];
+    const paid = s.payments.reduce((a, p) => a + p, 0);
+    const bal = 235 - paid;
+    const m = n => '$' + n.toFixed(2);
+    const isTech = s.role === 'Technician';
+    const showMoney = !isTech;
+
+    const glyph = (key, c) => ({
+      ops: 'width:17px;height:13px;background:repeating-linear-gradient(90deg,' + c + ' 0 3px,transparent 3px 6px);border-bottom:1.6px solid ' + c,
+      board: 'width:15px;height:15px;border-radius:50%;border:1.6px solid ' + c + ';background:linear-gradient(180deg,transparent 46%,' + c + ' 46%,' + c + ' 54%,transparent 54%)',
+      jobs: 'width:13px;height:16px;border:1.6px solid ' + c + ';border-radius:3px;background:linear-gradient(180deg,transparent 26%,' + c + ' 26%,' + c + ' 36%,transparent 36%,transparent 56%,' + c + ' 56%,' + c + ' 66%,transparent 66%)',
+      customers: 'width:15px;height:15px;border-radius:50% 50% 5px 5px;border:1.6px solid ' + c + ';background:radial-gradient(circle at 50% 28%,' + c + ' 0 3.2px,transparent 3.4px)',
+      money: 'width:18px;height:12px;border:1.6px solid ' + c + ';border-radius:3px;background:radial-gradient(circle at 50% 50%,' + c + ' 0 2.4px,transparent 2.6px)',
+      parts: 'width:16px;height:16px;clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);background:radial-gradient(circle at 50% 50%,#0f1213 0 3.4px,' + c + ' 3.6px)',
+      team: 'width:18px;height:13px;border-bottom:1.6px solid ' + c + ';background:radial-gradient(circle at 27% 38%,' + c + ' 0 3.2px,transparent 3.4px),radial-gradient(circle at 73% 38%,' + c + ' 0 3.2px,transparent 3.4px)',
+      reports: 'width:17px;height:14px;background:linear-gradient(180deg,transparent 58%,' + c + ' 58%) 0 0/4px 100% no-repeat,linear-gradient(180deg,transparent 22%,' + c + ' 22%) 6.5px 0/4px 100% no-repeat,linear-gradient(180deg,transparent 42%,' + c + ' 42%) 13px 0/4px 100% no-repeat'
+    }[key]);
+    const rail = [
+      ['Floor', 'ops', ''], ['Clock', 'board', '18'], ['Jobs', 'jobs', ''], ['Customers', 'customers', ''],
+      ['Money', 'money', '38'], ['Parts', 'parts', ''], ['Team', 'team', ''], ['Reports', 'reports', '']
+    ].map(([name, key, count]) => {
+      const on = s.screen === key || (key === 'ops' && s.screen === 'ops') || (key === 'jobs' && s.screen === 'job');
+      return {
+        name, count, label: name.toUpperCase(), go: () => this.setState({ screen: key }),
+        style: 'width:58px;padding:7px 0 5px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;position:relative;' + (on ? 'background:linear-gradient(180deg,#232a2e,#1a2023);box-shadow:inset 0 0 0 1px #2f373c,0 1px 0 #0006' : 'background:transparent'),
+        blade: on ? 'position:absolute;left:-9px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:#e2892f;box-shadow:0 0 10px #e2892f99' : 'display:none',
+        glyph: glyph(key, on ? '#e2892f' : '#69737a'),
+        labelStyle: 'font-family:\'IBM Plex Mono\',monospace;font-size:7.5px;letter-spacing:.11em;color:' + (on ? '#d7b184' : '#4f585d'),
+        badge: count ? 'position:absolute;top:3px;right:4px;font-family:\'IBM Plex Mono\',monospace;font-size:8px;font-weight:600;background:#2a3034;color:#c8d0d4;border-radius:5px;padding:1px 4px' : 'display:none'
+      };
+    });
+
+    const roles = ['Owner', 'Advisor', 'Technician'].map(name => ({
+      name, pick: () => this.setState({ role: name }),
+      style: 'padding:4px 9px;border-radius:6px;font-size:11.5px;cursor:pointer;' + (s.role === name ? 'background:#2a3034;color:#e6e9ea;font-weight:600' : 'color:#7c858c')
+    }));
+
+    const meters = [
+      ['ON SITE', '18', '', 'of 22 capacity', 82, '#58a6c8', 'cars'],
+      ['AT RISK', '2', '', 'past promise time', 100, '#d1564c', 'jobs'],
+      ['BLOCKED', '9', '', '4 approval · 5 parts', 50, '#c98a2f', 'jobs'],
+      ['THROUGHPUT', '7', '+2', 'delivered today', 58, '#59a97a', 'cars'],
+      ['BILLED', '$2,340', '+12%', '$1,980 collected', 85, '#e6e9ea', ''],
+      ['LABOR SOLD', '11.5h', '−1.2h', 'of 32h clocked', 36, '#8b7bd6', '']
+    ].map(([label, value, delta, note, pct, col]) => ({
+      label, value, note, delta,
+      valStyle: 'font-family:\'IBM Plex Mono\',monospace;font-size:22px;font-weight:600;letter-spacing:-0.01em;color:' + col,
+      deltaStyle: delta ? 'font-family:\'IBM Plex Mono\',monospace;font-size:11px;font-weight:600;color:' + (delta.charAt(0) === '−' ? '#c98a2f' : '#59a97a') : 'display:none',
+      bar: 'height:100%;width:' + pct + '%;background:' + col
+    }));
+
+    const tex = this.props.bgTexture ?? 'grid';
+    const glowOn = (this.props.accentGlow ?? true);
+    const grain = this.props.grain ?? 12;
+    const lampsOn = (this.props.lampAnimation ?? true);
+    const bgL = [], bgS = [];
+    if (glowOn) { bgL.push('radial-gradient(1250px 640px at 13% -14%,#e2892f22,transparent 62%)'); bgS.push('auto'); }
+    if (tex === 'grid') { bgL.push('repeating-linear-gradient(0deg,#ffffff09 0 1px,transparent 1px 46px)', 'repeating-linear-gradient(90deg,#ffffff09 0 1px,transparent 1px 46px)'); bgS.push('auto', 'auto'); }
+    if (tex === 'blueprint') { bgL.push('repeating-linear-gradient(0deg,#58a6c815 0 1px,transparent 1px 23px)', 'repeating-linear-gradient(90deg,#58a6c815 0 1px,transparent 1px 23px)'); bgS.push('auto', 'auto'); }
+    if (tex === 'vignette') { bgL.push('radial-gradient(ellipse 130% 85% at 50% -12%,#161e21,transparent 68%)'); bgS.push('auto'); }
+    const bgLayerStyle = 'position:fixed;inset:0;pointer-events:none;z-index:0;background:' + (bgL.length ? bgL.join(',') : 'transparent') + ';background-size:' + bgS.join(',');
+    const grainOpacity = grain > 0 ? +(Math.min(40, grain) / 40 * 0.3).toFixed(3) : 0;
+    const bgGrainStyle = 'position:fixed;inset:0;pointer-events:none;z-index:0;background-image:url(./noise-grain.png);background-size:128px 128px;opacity:' + grainOpacity + ';' + (grain > 0 ? '' : 'display:none');
+
+    const bayData = [
+      ['BAY 1 · LIFT', 'Honda Civic', 'CVC 640', 'Ahmed Hassan', 'WORKING', 62, '2h left', '#58a6c8'],
+      ['BAY 2 · LIFT', 'Mercedes-Benz C300', 'MBZ 402', 'Hassan Nasser', 'LATE', 88, '3h over', '#d1564c'],
+      ['BAY 3 · LIFT', 'BMW 328i', 'ABC 123', 'Ahmed Hassan', st.k, 0, '', st[1]],
+      ['BAY 4 · FLAT', 'Jeep Wrangler', 'JKL 774', 'Karim Aziz', 'WORKING', 40, '4h left', '#58a6c8'],
+      ['BAY 5 · ALIGN', 'Volkswagen Golf GTI', 'GTI 007', 'Karim Aziz', 'BLOCKED', 30, 'part 14:00', '#c98a2f'],
+      ['BAY 6 · FLAT', 'Kia Sportage', 'KSP 233', 'Hassan Nasser', 'QC', 95, '25m left', '#8b7bd6'],
+      ['BAY 7 · FLAT', '', '', '', 'FREE', 0, '', '#3a4247'],
+      ['BAY 8 · DIAG', '', '', '', 'FREE', 0, '', '#3a4247']
+    ];
+    const bays = bayData.map((b, i) => {
+      const isBmw = i === 2;
+      const state = isBmw ? st[0] : b[4];
+      const col = isBmw ? st[1] : b[7];
+      const pct = isBmw ? 55 : b[5];
+      const eta = isBmw ? 'due 17:00' : b[6];
+      const free = b[4] === 'FREE';
+      const isLift = b[0].includes('LIFT');
+      const lift = isLift ? (free ? 56 : 56 + Math.round(Math.min(90, pct) * 0.82)) : 52;
+      return {
+        bay: b[0], veh: free ? 'Available' : b[1], plate: free ? 'next check-in' : b[2],
+        tech: free ? '—' : b[3], state, eta, pct: free ? '' : pct + '%',
+        card: 'min-width:0;border-radius:10px;padding:11px 12px;cursor:pointer;background:' + (free ? '#0c1011' : '#131718') + ';border:1px solid ' + (isBmw ? '#e2892f' : free ? '#191e20' : '#212729') + (isBmw ? ';box-shadow:0 0 0 3px #e2892f1a' : ''),
+        pill: this.pill(col),
+        ring: 'width:38px;height:38px;border-radius:50%;flex:0 0 38px;display:flex;align-items:center;justify-content:center;background:conic-gradient(' + col + ' ' + (pct * 3.6) + 'deg,#1e2427 0)',
+        ringInner: 'width:29px;height:29px;border-radius:50%;background:#131718;display:flex;align-items:center;justify-content:center;font-family:\'IBM Plex Mono\',monospace;font-size:9px;font-weight:600;color:#aab3b8',
+        nameStyle: 'font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + (free ? '#5f696e' : '#e6e9ea'),
+        etaStyle: 'font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;font-weight:600;color:' + (b[4] === 'LATE' ? '#d1564c' : '#8b959b'),
+        go: () => this.setState({ screen: free ? 'ops' : 'job' }),
+        plateTag: free ? 'OPEN' : b[2],
+        bayNum: b[0].split('·')[0].trim().replace('BAY ', 'BAY '),
+        kind: b[0].split('·')[1].trim(),
+        col: 'position:relative;flex:1;min-width:0;cursor:pointer' + (i ? ';border-left:1px dashed #171d20' : '') + (isBmw ? ';background:linear-gradient(180deg,#e2892f0a,transparent 70%)' : ''),
+        cone: 'position:absolute;top:19px;left:50%;transform:translateX(-50%);width:150%;height:176px;pointer-events:none;background:linear-gradient(180deg,' + (free ? '#2a323618' : col + '22') + ',transparent 76%);clip-path:polygon(41% 0,59% 0,100% 100%,0 100%)' + ((free || !lampsOn) ? '' : ';animation:lamp 4.5s ease-in-out infinite'),
+        lamp: 'position:absolute;top:6px;left:50%;transform:translateX(-50%);width:36px;height:9px;border-radius:3px 3px 8px 8px;background:linear-gradient(180deg,#3b454c,#232a2f)',
+        bulb: 'position:absolute;left:4px;right:4px;bottom:-2px;height:3px;border-radius:2px;background:' + (free ? '#2b3236' : col) + (free ? '' : ';box-shadow:0 0 12px ' + col + 'cc'),
+        pool: 'position:absolute;left:2%;right:2%;bottom:0;height:52px;pointer-events:none;background:radial-gradient(ellipse at 50% 0%,' + (free ? '#21292d20' : col + '26') + ',transparent 72%)',
+        postL: isLift ? 'position:absolute;bottom:52px;top:50px;left:15%;width:7px;border-radius:2px 2px 0 0;background:repeating-linear-gradient(0deg,#00000055 0 1px,transparent 1px 15px),linear-gradient(90deg,#525c63,#2a3135 72%)' : 'display:none',
+        postR: isLift ? 'position:absolute;bottom:52px;top:50px;right:15%;width:7px;border-radius:2px 2px 0 0;background:repeating-linear-gradient(0deg,#00000055 0 1px,transparent 1px 15px),linear-gradient(90deg,#2a3135,#525c63 72%)' : 'display:none',
+        baseL: isLift ? 'position:absolute;bottom:49px;left:15%;margin-left:-7px;width:21px;height:6px;border-radius:2px;background:#343d42' : 'display:none',
+        baseR: isLift ? 'position:absolute;bottom:49px;right:15%;margin-right:-7px;width:21px;height:6px;border-radius:2px;background:#343d42' : 'display:none',
+        shadow: free ? 'display:none' : 'position:absolute;left:15%;right:15%;bottom:47px;height:10px;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,#000000e0,transparent 72%);opacity:' + (isLift ? '.9' : '.6'),
+        carriage: 'position:absolute;left:12%;right:12%;bottom:' + lift + 'px;height:' + (isLift ? '5px' : '0') + ';border-radius:2px;background:' + (isLift ? 'linear-gradient(180deg,#6d767d,#3c4449)' : 'transparent') + ';display:flex;justify-content:center',
+        carWrap: free ? 'display:none' : 'position:relative;width:88%;height:44px;transform:translateY(-100%)',
+        carSil: 'position:absolute;left:0;right:0;bottom:7px;height:30px;background:linear-gradient(180deg,' + col + '5c 0%,' + col + '30 46%,' + col + '16 100%);clip-path:polygon(1% 96%,0% 58%,7% 38%,26% 34%,41% 7%,66% 6%,81% 35%,96% 39%,100% 60%,99% 96%);filter:drop-shadow(0 0 .7px ' + col + 'e0)',
+        carGlass: 'position:absolute;left:0;right:0;bottom:7px;height:30px;background:linear-gradient(155deg,#cfe0ea26,#0a0e1055 62%);clip-path:polygon(43% 13%,64% 12%,75% 33%,31% 35%)',
+        carPillar: 'position:absolute;left:54%;bottom:26px;width:1.5px;height:8px;background:' + col + '8a;transform:skewX(-9deg)',
+        carShoulder: 'position:absolute;left:9%;right:7%;bottom:21px;height:1px;background:linear-gradient(90deg,transparent,' + col + 'a6 40%,transparent)',
+        headlight: 'position:absolute;left:2px;bottom:24px;width:6px;height:3px;border-radius:2px 1px 1px 2px;background:#ffeac0;box-shadow:0 0 9px #ffd98aaa',
+        taillight: 'position:absolute;right:2px;bottom:26px;width:4px;height:3px;border-radius:1px;background:#d1564cdd;box-shadow:0 0 7px #d1564c8a',
+        wheelL: 'position:absolute;bottom:0;left:13%;width:16px;height:16px;border-radius:50%;background:#0a0d0e;border:2px solid #394247',
+        wheelR: 'position:absolute;bottom:0;right:11%;width:16px;height:16px;border-radius:50%;background:#0a0d0e;border:2px solid #394247',
+        hub: 'position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle,#394247,#20262a);border:1px solid #4d575d',
+        pctTag: free ? 'display:none' : 'position:absolute;bottom:' + (lift - 5) + 'px;left:6px;font-family:\'IBM Plex Mono\',monospace;font-size:9.5px;font-weight:600;letter-spacing:.04em;color:' + col,
+        freeTag: free ? 'position:absolute;left:0;right:0;bottom:86px;text-align:center;font-family:\'IBM Plex Mono\',monospace;font-size:9px;letter-spacing:.16em;color:#394247' : 'display:none',
+        bayTag: 'position:absolute;left:0;right:0;bottom:11px;text-align:center;font-family:\'IBM Plex Mono\',monospace;font-size:8.5px;letter-spacing:.14em;color:' + (free ? '#3f484d' : '#5b656b'),
+        readCell: 'flex:1;min-width:0;padding:10px 11px;cursor:pointer;display:flex;flex-direction:column;gap:5px' + (i ? ';border-left:1px solid #171c1e' : '') + (isBmw ? ';background:#e2892f0f' : ''),
+        techLine: free ? 'Next check-in' : b[3] + (eta ? ' · ' + eta : '')
+      };
+    });
+
+
+    const risks = [
+      ['Mercedes-Benz C300', 'Promised 11:00 · brake bleed still open · Marcus Bell waiting in lounge', '$185', 'REVENUE HELD', '#d1564c', 'Call'],
+      ['BMW X5', 'Estimate sent 5h ago, no reply · Omar Farouk', '$980', 'UNAPPROVED', '#c98a2f', 'Resend'],
+      ['Audi A4', 'Ready since 11:20 but unpaid · blocking bay turnover', '$410', 'UNCOLLECTED', '#d1564c', 'Collect'],
+      ['Volkswagen Golf GTI', 'Rear discs late from Midway · alignment bay idle', '$260', 'PART LATE', '#c98a2f', 'Chase'],
+      ['John Smith', bal > 0 ? 'INV-2026-0521 open after part payment' : 'Settled in full today', bal > 0 ? m(bal) : '$0.00', 'RECEIVABLE', bal > 0 ? '#c98a2f' : '#59a97a', bal > 0 ? 'Charge' : 'View']
+    ].map(r => ({
+      title: r[0], detail: r[1], amount: r[2], tag: r[3], action: r[5],
+      stripe: 'width:3px;height:32px;border-radius:2px;background:' + r[4],
+      amtStyle: 'font-family:\'IBM Plex Mono\',monospace;font-size:13.5px;font-weight:600;color:' + r[4],
+      go: () => this.setState({ screen: 'job' })
+    }));
+
+    const cashBars = [12, 24, 38, 30, 52, 66, 74, 58, 40, 18, 8].map((h, i) => ({
+      collected: 'height:' + Math.round(h * 0.72) + '%;background:' + (i > 6 ? '#232a2e' : '#59a97a') + ';border-radius:2px',
+      billed: 'height:' + Math.round(h * 0.28) + '%;background:' + (i > 6 ? '#1b2023' : '#2f5a44') + ';border-radius:2px'
+    }));
+
+    const laneData = [
+      ['Ahmed Hassan', 'AH', '6.2h clocked · 4.8h billed', 77, [[0, 22, 'Civic clutch', '#58a6c8'], [26, 18, 'BMW 328i arms', '#e2892f'], [50, 14, 'Corolla idle', '#2f4a5a']]],
+      ['Hassan Nasser', 'HN', '5.8h clocked · 3.1h billed', 53, [[4, 30, 'C300 brakes', '#d1564c'], [40, 16, 'Sportage QC', '#8b7bd6']]],
+      ['Karim Aziz', 'KA', '6.0h clocked · 5.4h billed', 90, [[2, 26, 'Wrangler lift', '#58a6c8'], [34, 12, 'GTI blocked', '#c98a2f'], [54, 20, 'A4 reseal', '#2f4a5a']]],
+      ['Youssef Amin', 'YA', '3.4h clocked · 1.2h billed', 35, [[10, 14, 'Altima A/C diag', '#8b7bd6']]]
+    ];
+    const lanes = laneData.map(l => ({
+      name: l[0], initials: l[1], hours: l[2], util: l[3] + '%',
+      utilStyle: 'font-family:\'IBM Plex Mono\',monospace;font-size:12px;font-weight:600;color:' + (l[3] >= 75 ? '#59a97a' : l[3] >= 50 ? '#c98a2f' : '#d1564c'),
+      nowLine: 'position:absolute;top:0;bottom:0;left:59%;width:1px;background:#e2892f;opacity:.75',
+      blocks: l[4].map(b => ({
+        label: b[2],
+        style: 'position:absolute;top:3px;bottom:3px;left:' + b[0] + '%;width:' + b[1] + '%;border-radius:5px;background:' + b[3] + '2e;border:1px solid ' + b[3] + ';display:flex;align-items:center;padding:0 7px;font-size:10.5px;font-weight:500;color:#dfe4e6;white-space:nowrap;overflow:hidden'
+      }))
+    }));
+
+    const hours = ['08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18'].map(label => ({ label }));
+
+    const clockData = [
+      ['Mercedes-Benz C300', 'JOB-2098 · Hassan', 'Brake replacement', 'DIAGNOSING', 8, 46, true, 'PROMISED 11:00 · 3H OVER', '#d1564c'],
+      ['Mazda 3', 'JOB-2081 · Ahmed', 'Oil + filters', 'READY', 12, 30, true, 'READY · UNPAID $135', '#d1564c'],
+      ['Volkswagen Golf GTI', 'JOB-2091 · Karim', 'Rear pads + discs', 'WAITING PARTS', 20, 42, false, 'PART ETA 14:00', '#c98a2f'],
+      ['BMW 328i', 'JOB-1842 · Ahmed', 'Control arms + alignment', st[0], 10, 72, false, 'DUE 17:00 · ON TRACK', '#59a97a'],
+      ['Kia Sportage', 'JOB-2085 · Hassan', 'Timing belt service', 'QC', 6, 62, false, 'DUE 15:00', '#8b7bd6'],
+      ['Honda Civic', 'JOB-2088 · Ahmed', 'Clutch replacement', 'REPAIRING', 24, 76, false, 'DUE TOMORROW', '#58a6c8'],
+      ['BMW X5', 'JOB-2094 · Ahmed', 'Suspension + oil leak', 'WAITING APPROVAL', 16, 50, false, 'SENT 5H AGO', '#c98a2f']
+    ];
+    const clockRows = clockData.map(r => {
+      const isBmw = r[0] === 'BMW 328i';
+      const col = isBmw ? st[1] : r[8];
+      const width = Math.min(r[5], 84 - r[4]);
+      return {
+        veh: r[0], meta: r[1], work: r[2], stage: r[3], flag: r[7],
+        spanStyle: 'position:absolute;top:4px;bottom:4px;left:' + r[4] + '%;width:' + width + '%;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 10px;color:#e6e9ea;background:' + col + '26;border:1px solid ' + col + (isBmw ? ';box-shadow:0 0 0 3px ' + col + '1a' : ''),
+        stageDot: 'width:6px;height:6px;border-radius:50%;flex:0 0 6px;background:' + col,
+        nowLine: 'position:absolute;top:-3px;bottom:-3px;left:59%;width:1px;background:#e2892f',
+        flagStyle: 'position:absolute;right:9px;top:50%;transform:translateY(-50%);font-family:\'IBM Plex Mono\',monospace;font-size:9px;letter-spacing:.09em;color:' + r[8],
+        go: () => this.setState({ screen: 'job' })
+      };
+    });
+
+    const boardModes = [['Promise clock', 'clock'], ['By stage', 'stage']].map(([name, k]) => ({
+      name, pick: () => this.setState({ mode: k }),
+      style: 'padding:4px 11px;border-radius:6px;font-size:11.5px;cursor:pointer;' + (s.mode === k ? 'background:#2a3034;font-weight:600' : 'color:#7c858c')
+    }));
+
+    const colData = [
+      ['CHECKED IN', '#7c858c', [['Nissan Altima', 'JOB-2101 · HKD 219', 'A/C not cooling', 'Unassigned', '16:30', 10, '', '']]],
+      ['DIAGNOSING', '#8b7bd6', [['Mercedes-Benz C300', 'JOB-2098 · MBZ 402', 'Brake noise front', 'Hassan', '11:00', 80, 'OVERDUE', '#d1564c'], ['Toyota Corolla', 'JOB-2099 · PLQ 553', 'Rough idle', 'Ahmed', '15:00', 30, '', '']]],
+      ['WAITING APPROVAL', '#c98a2f', [['BMW X5', 'JOB-2094 · XDR 551', 'Suspension + oil leak $980', 'Ahmed', '17:30', 45, 'SENT 5H', '#c98a2f']]],
+      ['WAITING PARTS', '#d1564c', [['Volkswagen Golf GTI', 'JOB-2091 · GTI 007', 'Rear pads + discs', 'Karim', '14:00', 55, 'LATE', '#d1564c']]],
+      ['REPAIRING', '#58a6c8', [['Honda Civic', 'JOB-2088 · CVC 640', 'Clutch replacement', 'Ahmed', 'Tomorrow', 62, '', ''], ['Jeep Wrangler', 'JOB-2089 · JKL 774', 'Lift kit install', 'Karim', '17:00', 40, '', '']]],
+      ['QC', '#8b7bd6', [['Kia Sportage', 'JOB-2085 · KSP 233', 'Timing belt service', 'Hassan', '15:00', 95, '', '']]],
+      ['READY', '#59a97a', [['Mazda 3', 'JOB-2081 · MZD 909', 'Oil + filters', 'Ahmed', 'Done', 100, 'UNPAID', '#d1564c'], ['Subaru Outback', 'JOB-2079 · SBU 442', 'Alternator', 'Karim', 'Done', 100, '', '']]]
+    ];
+    const bmwCard = ['BMW 328i', 'JOB-1842 · ABC 123', 'Control arms + alignment', 'Ahmed', '17:00', 55, 'BAY 3', '#e2892f'];
+    const columns = colData.map((c, ci) => {
+      const rows = c[2].slice();
+      if (ci === s.stage) rows.unshift(bmwCard);
+      return {
+        title: c[0], count: rows.length, dot: 'width:7px;height:7px;border-radius:2px;background:' + c[1],
+        jobs: rows.map(r => {
+          const isBmw = r[1].indexOf('1842') >= 0;
+          return {
+            veh: r[0], meta: r[1], work: r[2], tech: r[3], eta: r[4], flag: r[6],
+            card: 'border-radius:9px;padding:11px 12px;cursor:pointer;background:#131718;border:1px solid ' + (isBmw ? '#e2892f' : '#212729') + (isBmw ? ';box-shadow:0 0 0 3px #e2892f1a' : ''),
+            flagStyle: r[6] ? this.pill(r[7], 9) : 'display:none',
+            bar: 'height:100%;width:' + r[5] + '%;background:' + (isBmw ? '#e2892f' : c[1]),
+            etaStyle: 'font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;font-weight:600;color:' + (r[6] === 'OVERDUE' ? '#d1564c' : '#8b959b'),
+            go: () => this.setState({ screen: 'job' })
+          };
+        })
+      };
+    });
+
+    const stepDefs = [
+      ['Checked in', '09:12 · Sarah'], ['Diagnosed', '09:45 · Ahmed'], ['Estimate sent', '10:08 · WhatsApp'],
+      [isTech ? 'Approved by customer' : 'Approved $235', '10:14 · John Smith'], ['Parts ordered', '11:24 · Midway'], ['Repair', s.stage >= 4 ? '14:20 · Ahmed' : 'blocked on part'],
+      ['QC', s.stage >= 5 ? '16:26 · Hassan' : 'pending'], ['Invoice · payment', paid > 0 ? m(paid) + ' collected' : 'not raised'], ['Delivered', s.stage >= 7 ? '16:58 · Sarah' : 'pending']
+    ];
+    const steps = stepDefs.map(([name, stamp], i) => {
+      const done = i < s.stage, cur = i === s.stage;
+      return {
+        name, stamp, go: () => { if (i <= s.stage + 1) this.setState({ stage: Math.min(i, 7) }); },
+        dot: 'width:11px;height:11px;border-radius:50%;flex:0 0 11px;' + (done ? 'background:#59a97a' : cur ? 'background:#e2892f;box-shadow:0 0 0 3px #e2892f2e' : 'background:#181d1f;border:1.5px solid #2a3135'),
+        line: 'width:1px;flex:1;min-height:14px;background:' + (done ? '#2c4a3a' : '#1e2427'),
+        label: 'font-size:12.5px;font-weight:' + (cur ? '600' : '500') + ';color:' + (done ? '#aab3b8' : cur ? '#e6e9ea' : '#5f696e')
+      };
+    });
+
+    const lineData = [
+      ['PART', '#58a6c8', 'Front control arm — left & right', 'OEM 31126769797 · QTY 2 · LEMFÖRDER', ['ORDERED', 'ORDERED', 'ORDERED', 'RECEIVED', 'INSTALLED'][s.part], '$110.00', '$160.00', 'Track'],
+      ['LABOR', '#8b7bd6', 'Replace both front control arms', 'AHMED HASSAN · EST 2.0H · 1.5H BILLED', s.stage >= 4 ? 'WORKING' : 'QUEUED', '—', '$50.00', s.stage >= 4 ? 'Pause' : 'Start'],
+      ['SERVICE', '#59a97a', 'Four-wheel alignment', 'ALIGNMENT BAY · EST 0.5H', 'QUEUED', '$0.00', '$25.00', 'Start'],
+      ['NOTE', '#7c858c', 'Customer asked for the old parts back', 'SARAH KHALIL · 10:16', '', '', '', '']
+    ];
+    const lines = lineData.map(l => ({
+      type: l[0], name: l[2], meta: l[3], status: l[4], cost: l[5], price: l[6], action: l[7],
+      kind: this.pill(l[1]) + ';width:62px;justify-content:center',
+      statusStyle: l[4] ? this.pill(l[4] === 'WORKING' ? '#58a6c8' : l[4] === 'INSTALLED' || l[4] === 'RECEIVED' ? '#59a97a' : l[4] === 'ORDERED' ? '#c98a2f' : '#7c858c', 10) + ';width:82px;justify-content:center' : 'width:82px',
+      actStyle: l[7] ? 'padding:6px 12px;border:1px solid #262c30;border-radius:8px;font-size:12px;font-weight:600;color:#c8d0d4;cursor:pointer;width:76px;text-align:center' : 'width:76px',
+      act: () => this.toast(l[7] ? l[7] + ' · ' + l[2] : '')
+    }));
+
+    const partNames = ['Requested', 'Searching', 'Ordered', 'Received', 'Installed'];
+    const partSteps = partNames.map((name, i) => ({
+      name, time: ['10:18', '10:44', '11:24', i <= s.part ? '14:05' : '—', i <= s.part ? '14:20' : '—'][i],
+      dot: 'width:9px;height:9px;border-radius:50%;flex:0 0 9px;' + (i <= s.part ? 'background:#e2892f' : 'background:#181d1f;border:1.5px solid #2a3135'),
+      line: 'width:1px;flex:1;min-height:11px;background:' + (i < s.part ? '#5c421f' : '#1e2427'),
+      label: 'font-size:12px;font-weight:' + (i === s.part ? '600' : '400') + ';color:' + (i <= s.part ? '#c8d0d4' : '#5f696e')
+    }));
+
+    const feedRaw = [
+      ['09:12', 'Checked in at 91,850 km · 4 walk-around photos', '#7c858c'],
+      ['09:45', 'Diagnosis: worn front control arm bushings', '#8b7bd6'],
+      ['10:08', isTech ? 'Estimate sent to customer on WhatsApp' : 'Estimate $235.00 sent on WhatsApp', '#c98a2f'],
+      ['10:14', 'John Smith approved all three items', '#59a97a'],
+      ['11:24', 'Parts ordered from Midway · ETA 14:00', '#d1564c']
+    ];
+    if (s.stage >= 4) feedRaw.push(['14:05', 'Parts received and checked against OEM number', '#58a6c8'], ['14:20', 'Ahmed started the repair in bay 3', '#58a6c8']);
+    if (s.stage >= 5) feedRaw.push(['16:02', 'Work complete · sent to QC · 1.5h billed', '#8b7bd6']);
+    if (s.stage >= 6) feedRaw.push(['16:26', 'QC passed · 4.2 km road test, vibration gone', '#59a97a']);
+    if (!isTech) s.payments.forEach((p, i) => feedRaw.push([i === 0 ? '16:41' : '17:12', m(p) + ' ' + s.method.toLowerCase() + ' recorded', '#59a97a']));
+    if (s.stage >= 7) feedRaw.push(['16:58', 'Delivered · service history updated', '#7c858c']);
+    const feed = feedRaw.slice().reverse().map(f => ({
+      time: f[0], text: f[1],
+      dot: 'position:absolute;top:4px;left:-4px;width:7px;height:7px;border-radius:50%;background:' + f[2]
+    }));
+
+    const alerts = [
+      ['John Smith approved an estimate', 'BMW 328i · $235.00 · JOB-1842', '10:14', 'Order parts', '#59a97a'],
+      ['Mercedes C300 is 3h past promise', 'Marcus Bell is waiting in the lounge', '14:02', 'Open job', '#d1564c'],
+      ['Golf GTI part late at Midway', 'Alignment bay idle for 40 minutes', '13:48', 'Chase', '#c98a2f'],
+      ['Audi A4 ready but unpaid', '$410 blocking bay turnover since 11:20', '11:20', 'Collect', '#d1564c'],
+      ['Payment received', 'Maria Delgado · $350.00 card', 'Yesterday', 'Receipt', '#59a97a']
+    ].map(a => ({
+      title: a[0], detail: a[1], time: a[2], action: a[3],
+      dot: 'width:7px;height:7px;border-radius:50%;flex:0 0 7px;background:' + a[4],
+      go: () => this.setState({ screen: 'job' })
+    }));
+
+    const cmdResults = [
+      ['VEHICLE', '#58a6c8', 'BMW 328i 2011 · ABC 123', 'John Smith · 91,850 km · bay 3', 'VIN …M12345'],
+      ['JOB', '#e2892f', 'JOB-1842 · control arms + alignment', st[0] + ' · Ahmed Hassan · due 17:00', '$235.00'],
+      ['CUSTOMER', '#8b7bd6', 'John Smith', '(312) 555-0184 · 2 vehicles · 6 visits', bal > 0 ? m(bal) + ' due' : 'no balance'],
+      ['INVOICE', '#59a97a', 'INV-2026-0521', bal > 0 ? 'balance ' + m(bal) : 'paid in full', '$235.00']
+    ].map(r => ({
+      kind: r[0], title: r[2], detail: r[3], meta: r[4],
+      tag: this.pill(r[1]) + ';width:74px;justify-content:center',
+      go: () => this.setState({ screen: 'job', cmd: false })
+    }));
+
+    const cmdActions = [
+      ['pay 85', 'Record $85 payment on INV-2026-0521', () => this.setState({ cmd: false, screen: 'job', payOpen: bal > 0, payAmt: bal })],
+      ['part rcvd', 'Mark control arms received', () => { this.setState({ cmd: false, part: 3 }); this.toast('Parts marked received'); }],
+      ['deliver', 'Deliver BMW 328i to customer', () => { this.setState({ cmd: false }); this.toast(bal > 0 ? 'Collect ' + m(bal) + ' before delivery' : 'Delivered'); }]
+    ].map(c => ({ key: c[0], name: c[1], go: c[2] }));
+
+    const methods = ['Cash', 'Card', 'Bank', 'Other'].map(name => ({
+      name, pick: () => this.setState({ method: name }),
+      style: 'padding:10px;text-align:center;border-radius:9px;font-size:12.5px;cursor:pointer;' + (s.method === name ? 'background:#e2892f;color:#160e04;font-weight:600' : 'border:1px solid #262c30;color:#c8d0d4')
+    }));
+
+    const soonTitles = {};
+    const tile = (label, value, note, col) => ({ label, value, note, valStyle: 'font-family:\'IBM Plex Mono\',monospace;font-size:22px;font-weight:600;letter-spacing:-0.01em;margin-top:6px;color:' + (col || '#e6e9ea') });
+
+    const customers = [
+      ['John Smith', 'BMW 328i', 'ABC 123', '(312) 555-0184', 'Today 09:12', 6, '$110.00', 'BALANCE DUE', '#c98a2f'],
+      ['Marcus Bell', 'Mercedes-Benz C300', 'MBZ 402', '(312) 555-0299', 'Today 08:40', 3, '$185.00', 'BALANCE DUE', '#c98a2f'],
+      ['Omar Farouk', 'BMW X5', 'XDR 551', '(312) 555-0410', 'Today 07:55', 9, '$980.00', 'AWAITING APPROVAL', '#8b7bd6'],
+      ['Maria Delgado', 'Subaru Outback', 'SBU 442', '(312) 555-0765', 'Yesterday', 14, '$0.00', 'VIP', '#59a97a'],
+      ['Layla Haddad', 'Toyota Corolla', 'PLQ 553', '(312) 555-0932', 'Today 10:20', 2, '$0.00', '', '#5f696e'],
+      ['Fatima Idris', 'Kia Sportage', 'KSP 233', '(312) 555-0187', 'Mon', 5, '$0.00', '', '#5f696e']
+    ].map(c => ({
+      name: c[0], initials: c[0].split(' ').map(w => w[0]).join(''), vehicle: c[1], plate: c[2], phone: c[3],
+      lastVisit: c[4], visits: c[5] + ' visits', balance: c[6], tag: c[7],
+      tagStyle: c[7] ? this.pill(c[8], 9.5) + ';width:150px;justify-content:center;flex:0 0 150px' : 'display:none;width:150px;flex:0 0 150px',
+      go: () => this.setState({ screen: 'job' })
+    }));
+    const custKpis = [tile('CUSTOMERS', '248', 'on file'), tile('VEHICLES', '312', 'registered'), tile('BALANCE DUE', '$1,240', 'across 6 accounts', '#c98a2f'), tile('REPEAT RATE', '68%', 'booked again within 90 days', '#59a97a')];
+
+    const invoices = [
+      ['INV-2026-0521', 'John Smith', 'BMW 328i', '$235.00', 'PARTIAL · $150 PAID', '#c98a2f', 'Today', 'Charge'],
+      ['INV-2026-0518', 'Marcus Bell', 'Mercedes-Benz C300', '$185.00', 'UNPAID', '#d1564c', 'Today', 'Charge'],
+      ['INV-2026-0517', 'Hana Youssef', 'Audi A4', '$410.00', 'READY · UNPAID', '#d1564c', 'Today', 'Collect'],
+      ['INV-2026-0510', 'Maria Delgado', 'Subaru Outback', '$350.00', 'PAID', '#59a97a', 'Yesterday', 'Receipt'],
+      ['INV-2026-0502', 'Omar Farouk', 'BMW X5', '$980.00', 'SENT · AWAITING APPROVAL', '#8b7bd6', '5h ago', 'Resend']
+    ].map(i => ({
+      num: i[0], customer: i[1], vehicle: i[2], amount: i[3], status: i[4], age: i[6], action: i[7],
+      statusStyle: this.pill(i[5], 9.5) + ';width:210px;justify-content:center;flex:0 0 210px',
+      go: () => this.setState({ screen: 'job' })
+    }));
+    const moneyKpis = [tile('BILLED TODAY', '$2,340', '7 invoices'), tile('COLLECTED TODAY', '$1,980', '85% of billed', '#59a97a'), tile('RECEIVABLES', '$1,835', '6 invoices open', '#c98a2f'), tile('AVG DAYS TO PAY', '1.4d', 'trailing 30 days')];
+
+    const partsIncoming = [
+      ['Front control arms (x2)', 'BMW 328i · JOB-1842', 'Midway Auto Parts', 'RECEIVED', '#59a97a', '14:05'],
+      ['Rear discs + pads', 'Golf GTI · JOB-2091', 'Midway Auto Parts', 'LATE', '#d1564c', 'ETA 14:00'],
+      ['Timing belt kit', 'Kia Sportage · JOB-2085', 'Crestline Auto Supply', 'INSTALLED', '#59a97a', 'Done'],
+      ['Alternator', 'Subaru Outback · JOB-2079', 'Midway Auto Parts', 'DELIVERED', '#7c858c', 'Yesterday']
+    ].map(p => ({
+      name: p[0], job: p[1], supplier: p[2], status: p[3], eta: p[5],
+      statusStyle: this.pill(p[4], 9.5) + ';width:100px;justify-content:center;flex:0 0 100px'
+    }));
+    const lowStock = [
+      ['Brake pads — front (universal)', 2, 5, 'Midway Auto Parts'],
+      ['5W-30 synthetic oil (5qt)', 3, 8, 'Crestline Auto Supply'],
+      ['Cabin air filters (assorted)', 4, 6, 'Midway Auto Parts'],
+      ['Wiper blades — 22"', 1, 4, 'Crestline Auto Supply']
+    ].map(s => ({ name: s[0], onHand: s[1] + ' left', reorder: s[2], supplier: s[3] }));
+    const partsKpis = [tile('OPEN ORDERS', '5', 'across 2 suppliers'), tile('LATE', '1', 'Golf GTI discs', '#d1564c'), tile('LOW STOCK', '4', 'SKUs below reorder point', '#c98a2f'), tile('SPEND THIS WEEK', '$2,180', 'parts + freight')];
+
+    const teamPerf = [
+      ['Ahmed Hassan', 'Senior Tech', '6.2h', '4.8h', 77, '14 jobs', '92%'],
+      ['Hassan Nasser', 'Tech', '5.8h', '3.1h', 53, '11 jobs', '81%'],
+      ['Karim Aziz', 'Senior Tech', '6.0h', '5.4h', 90, '16 jobs', '95%'],
+      ['Youssef Amin', 'Junior Tech', '3.4h', '1.2h', 35, '6 jobs', '74%']
+    ].map(t => ({
+      name: t[0], role: t[1], clocked: t[2], billed: t[3], jobs: t[5], onTime: t[6] + ' on-time',
+      bar: 'height:100%;width:' + t[4] + '%;background:' + (t[4] >= 75 ? '#59a97a' : t[4] >= 50 ? '#c98a2f' : '#d1564c'),
+      utilStyle: 'width:44px;flex:0 0 44px;text-align:right;font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;font-weight:600;color:' + (t[4] >= 75 ? '#59a97a' : t[4] >= 50 ? '#c98a2f' : '#d1564c'),
+      util: t[4] + '%'
+    }));
+    const teamKpis = [tile('ON SHIFT', '4', 'technicians'), tile('AVG UTILIZATION', '64%', 'billed vs clocked'), tile('LABOR SOLD TODAY', '11.5h', 'of 21.4h clocked'), tile('TOP PERFORMER', 'Karim Aziz', '90% utilization this week', '#59a97a')];
+
+    const revDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    const revVals = [1800, 2100, 1950, 2340, 2600, 2050, 1780];
+    const revBars = revVals.map((v, i) => ({
+      label: revDays[i],
+      bar: 'width:100%;border-radius:3px 3px 0 0;height:' + Math.round(v / 2600 * 100) + '%;background:' + (revDays[i] === 'FRI' ? '#e2892f' : '#2f373c')
+    }));
+    const revCats = [
+      ['Brakes', 28, '#58a6c8'], ['Suspension', 24, '#8b7bd6'], ['Oil & filters', 19, '#59a97a'],
+      ['Diagnostics', 12, '#c98a2f'], ['Alignment', 9, '#e2892f'], ['Other', 8, '#5f696e']
+    ].map(c => ({ name: c[0], pct: c[1] + '%', bar: 'height:100%;width:' + c[1] + '%;background:' + c[2] }));
+    const reportKpis = [tile('REVENUE THIS WEEK', '$14,620', '+8% vs last week', '#59a97a'), tile('GROSS MARGIN', '59%', 'parts + labor blended'), tile('AVG REPAIR TIME', '2.1h', 'check-in to ready'), tile('CARS SERVICED', '47', 'this week')];
+
+    return {
+      bgLayerStyle, bgGrainStyle, rail, roles, meters, bays, risks, cashBars, lanes, hours, clockRows, boardModes, columns,
+      steps, lines, partSteps, feed, alerts, cmdResults, cmdActions, methods,
+      evidence: [{ label: 'CHECK-IN' }, { label: 'ODOMETER' }, { label: 'ARM WEAR' }, { label: 'BUSHING' }],
+      isOps: s.screen === 'ops', isBoard: s.screen === 'board', isJob: s.screen === 'job' || s.screen === 'jobs',
+      isAlerts: s.screen === 'alerts', isSoon: !!soonTitles[s.screen] && s.screen !== 'jobs',
+      isCustomers: s.screen === 'customers', isMoney: s.screen === 'money', isParts: s.screen === 'parts', isTeam: s.screen === 'team', isReports: s.screen === 'reports',
+      soonTitle: soonTitles[s.screen] || '',
+      customers, custKpis, invoices, moneyKpis, partsIncoming, lowStock, partsKpis, teamPerf, teamKpis, revBars, revCats, reportKpis,
+      modeClock: s.mode === 'clock', modeStage: s.mode === 'stage',
+      crumb: { ops: 'FLOOR CONTROL', board: 'PROMISE CLOCK', job: 'JOB-1842 · BMW 328I', jobs: 'JOB-1842 · BMW 328I', alerts: 'ALERTS', customers: 'CUSTOMERS & VEHICLES', money: 'MONEY', parts: 'PARTS & SUPPLIERS', team: 'TEAM & PERFORMANCE', reports: 'REPORTS' }[s.screen] || 'GARAGEOS',
+      stageLabel: st[0], stagePill: this.pill(st[1], 10.5) + ';padding:4px 9px',
+      advanceLabel: ['Start diagnosis', 'Build estimate', 'Send for approval', 'Receive parts', 'Send to QC', 'Pass QC', 'Deliver vehicle', 'Job closed'][s.stage],
+      advance: () => {
+        if (s.stage === 6 && bal > 0) { this.toast('Collect ' + m(bal) + ' before delivery'); return; }
+        const n = Math.min(s.stage + 1, 7);
+        this.setState({ stage: n, part: n >= 4 ? Math.max(s.part, 4) : s.part });
+        this.toast('BMW 328i → ' + this.STAGES[n][0]);
+      },
+      deliver: () => { if (bal > 0) { this.toast('Collect ' + m(bal) + ' before delivery'); return; } this.setState({ stage: 7 }); this.toast('Delivered · service history updated'); },
+      workSummary: showMoney ? '1.5H BILLED OF 2.5H ESTIMATED · MARGIN 53%' : '1.5H BILLED OF 2.5H ESTIMATED',
+      showMoney, hideMoney: !showMoney,
+      roleLabel: isTech ? 'TECH VIEW' : s.role.toUpperCase() + ' VIEW',
+      roleTag: this.pill(isTech ? '#7c858c' : '#e2892f', 9.5),
+      paidText: m(paid), balanceText: m(bal),
+      balanceStyle: 'font-family:\'IBM Plex Mono\',monospace;font-weight:600;font-size:15px;color:' + (bal > 0 ? '#c98a2f' : '#59a97a'),
+      payBtn: 'margin-top:13px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer;' + (bal > 0 ? 'background:#59a97a;color:#08160e' : 'background:#181d1f;color:#5f696e'),
+      payLabel: bal > 0 ? 'Take payment · ' + m(bal) + ' due' : 'Settled in full',
+      partAction: ['Mark searching', 'Mark ordered', 'Mark received', 'Mark installed', 'Installed'][s.part],
+      advancePart: () => { if (s.part < 4) { this.setState({ part: s.part + 1 }); this.toast(partNames[s.part + 1] + ' · feed updated'); } },
+      payOpen: s.payOpen, payAmount: m(s.payAmt),
+      openPay: () => { if (bal > 0) this.setState({ payOpen: true, payAmt: paid === 0 ? 150 : bal }); },
+      closePay: () => this.setState({ payOpen: false }),
+      payHalf: () => this.setState({ payAmt: Math.min(150, bal) }),
+      payFull: () => this.setState({ payAmt: bal }),
+      recordPayment: () => {
+        const amt = Math.min(s.payAmt, bal);
+        this.setState({ payments: s.payments.concat([amt]), payOpen: false });
+        this.toast(m(amt) + ' recorded · balance ' + m(bal - amt));
+      },
+      cmdOpen: s.cmd, openCmd: () => this.setState({ cmd: true }), closeCmd: () => this.setState({ cmd: false }),
+      goOps: () => this.setState({ screen: 'ops' }), goBoard: () => this.setState({ screen: 'board' }),
+      goJob: () => this.setState({ screen: 'job' }), goAlerts: () => this.setState({ screen: 'alerts' }),
+      toast: s.toast, toastOn: !!s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

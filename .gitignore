@@ -1,0 +1,82 @@
+# =============================================================================
+# .NET
+# =============================================================================
+bin/
+obj/
+*.user
+.vs/
+*.suo
+*.userosscache
+*.sln.docstates
+appsettings.Development.json
+appsettings.*.Development.json
+appsettings.Local.json
+appsettings.*.Local.json
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/packages/
+
+# Rider
+.idea/
+
+# Publish output
+publish/
+artifacts/
+
+# Archived / superseded local scripts (not part of the shipped repo)
+_archive/
+
+# =============================================================================
+# Node / Frontend
+# =============================================================================
+node_modules/
+dist/
+.env.local
+.env.*.local
+
+# Vite
+*.local
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build cache
+.cache/
+.parcel-cache/
+
+# =============================================================================
+# Docker
+# =============================================================================
+.env
+
+# =============================================================================
+# IDE — VS Code (keep recommended extensions list)
+# =============================================================================
+.vscode/*
+!.vscode/extensions.json
+
+# =============================================================================
+# General
+# =============================================================================
+*.log
+*.log.*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.bak
+
+# =============================================================================
+# Secrets & Sensitive files — never commit
+# =============================================================================
+*.pfx
+*.key
+secrets.json
+*secrets*.json
