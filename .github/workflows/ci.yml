@@ -1,0 +1,103 @@
+name: CI
+
+# WP-3 CI-wiring gap closure (per 13_phase1_execution_plan.md WP-9 §122:
+# "each WP wires its own suite in"). Runs GarageOS.Tests.Unit and
+# GarageOS.Tests.Integration against a real PostgreSQL 15 service
+# container on every push/PR against main.
+#
+# This is a CI-native `services:` container (DECISIONS.md #10, WP-2/WP-9):
+# not Testcontainers, not Docker managed by app/test code, not an
+# EF Core InMemory/SQLite substitute. Integration tests run against real
+# PostgreSQL 15+ per DECISIONS.md #10.
+#
+# No deployment steps here. No production credentials here. Production
+# deployment is a separate, Owner-approval-gated workflow/runbook.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  # Real, ephemeral, CI-only PostgreSQL 15 service container below — fresh
+  # on every run, destroyed at job end. The password here is a throwaway
+  # value for that ephemeral database, not a persisted/production
+  # credential (see workflow header comment).
+  ConnectionStrings__GarageOsDb: "Host=localhost;Port=5432;Database=pit961_integration_test;Username=postgres;Password=postgres"
+  ConnectionStrings__PlatformDb: "Host=localhost;Port=5432;Database=pit961_integration_test;Username=postgres;Password=postgres"
+  ConnectionStrings__IntegrationTestDb: "Host=localhost;Port=5432;Database=pit961_integration_test;Username=postgres;Password=postgres"
+
+jobs:
+  build-and-test:
+    name: Build & test (backend)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pit961_integration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # dotnet-ef is pinned as a local tool in backend/.config/dotnet-tools.json
+      # (isRoot: true, version 8.0.11, matching the EFCore.Design package
+      # version). Migrations are NOT self-applied anywhere in the app or the
+      # integration-test fixture (verified in Program.cs and
+      # IntegrationTestFixture.cs) so CI must apply them explicitly below.
+      - name: Restore dotnet local tools (dotnet-ef)
+        working-directory: backend
+        run: dotnet tool restore
+
+      - name: Restore NuGet packages
+        run: dotnet restore backend/GarageOS.sln
+
+      - name: Build
+        run: dotnet build backend/GarageOS.sln --no-restore
+
+      # Applies cleanly to a fresh Postgres instance — this is WP-3's own
+      # restated acceptance criterion #1, exercised here against the
+      # always-fresh CI Postgres service container. Two DbContexts, two
+      # migrations-history tables (__EFMigrationsHistory vs
+      # __ef_migrations_history_platform) — each must be applied separately.
+      - name: Apply AppDbContext migrations
+        working-directory: backend
+        run: >-
+          dotnet ef database update
+          --context AppDbContext
+          --project GarageOS.Infrastructure/GarageOS.Infrastructure.csproj
+          --startup-project GarageOS.Api/GarageOS.Api.csproj
+
+      - name: Apply PlatformDbContext migrations
+        working-directory: backend
+        run: >-
+          dotnet ef database update
+          --context PlatformDbContext
+          --project GarageOS.Infrastructure/GarageOS.Infrastructure.csproj
+          --startup-project GarageOS.Api/GarageOS.Api.csproj
+
+      # Runs GarageOS.Tests.Unit (no DB needed) and GarageOS.Tests.Integration
+      # (real Postgres via the service container above) together. Default
+      # `dotnet test` exit-code behavior fails the workflow on any test
+      # failure — nothing here swallows that exit code.
+      - name: Test (GarageOS.Tests.Unit + GarageOS.Tests.Integration)
+        run: dotnet test backend/GarageOS.sln --no-build

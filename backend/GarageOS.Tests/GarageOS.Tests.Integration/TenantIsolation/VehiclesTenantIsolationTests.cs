@@ -86,4 +86,20 @@ public class VehiclesTenantIsolationTests(IntegrationTestFixture fixture)
 
         Assert.Throws<TenantOwnershipException>(() => TenantGuard.EnsureOwned(vehicleB.GarageId, currentTenant));
     }
+
+    [Fact]
+    public async Task WriteOwnershipCheck_RejectsParentCustomerFromMismatchedTenant()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customerB = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantB.Garage.Id);
+
+        var currentTenant = new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id };
+
+        // Denormalized garage_id integrity (WP-3 brief section 2 closing note): creating a
+        // vehicle whose parent customer belongs to Tenant B while acting as Tenant A must be
+        // rejected by TenantGuard on the parent customer id.
+        Assert.Throws<TenantOwnershipException>(() => TenantGuard.EnsureOwned(customerB.GarageId, currentTenant));
+    }
 }
