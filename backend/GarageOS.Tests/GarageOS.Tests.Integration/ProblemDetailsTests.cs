@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace GarageOS.Tests.Integration;
 
@@ -24,6 +25,25 @@ public class ProblemDetailsTests(IntegrationTestFixture fixture)
         Assert.Equal(500, problem!.Status);
         Assert.Equal("An unexpected error occurred.", problem.Title);
         Assert.Equal("/api/diagnostics/throw", problem.Instance);
+    }
+
+    [Fact]
+    public async Task UnhandledException_OutsideDevelopment_DoesNotIncludeExceptionExtensionField()
+    {
+        // KI-4: GlobalExceptionHandler only adds the "exception" extension field in
+        // Development (verified correct by code review and by Security Reviewer during
+        // WP-2's security gate) -- this asserts the field is genuinely ABSENT under
+        // "Testing" (the environment WebApplicationFactory sets here, and the environment
+        // this whole test suite actually runs under), not just that the fields the happy
+        // path checks are present.
+        var client = fixture.CreateClient();
+
+        var response = await client.GetAsync("/api/diagnostics/throw");
+        var rawBody = await response.Content.ReadAsStringAsync();
+
+        using var document = JsonDocument.Parse(rawBody);
+        Assert.False(document.RootElement.TryGetProperty("exception", out _),
+            "ProblemDetails response must not include the 'exception' extension field outside Development.");
     }
 
     private sealed record ProblemDetailsPayload(string? Type, string? Title, int Status, string? Instance);

@@ -2,13 +2,13 @@ using GarageOS.Application.Abstractions;
 using GarageOS.Infrastructure.Data;
 using GarageOS.Infrastructure.Data.Platform;
 using GarageOS.Tests.Integration.TestSupport;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Respawn;
 
@@ -47,19 +47,57 @@ public sealed class IntegrationTestFixture : WebApplicationFactory<Program>, IAs
 
     public string ConnectionString { get; private set; } = string.Empty;
 
+    /// <summary>Singleton capture point for password-reset emails the app "sends" during
+    /// a test run. Exposed as a static so individual test classes can reach it without
+    /// threading a fixture-scoped instance through DI resolution -- there is exactly one
+    /// app host (and therefore one email service instance) per fixture, so this is safe.
+    /// Tests MUST call <see cref="CapturingEmailService.Reset"/> between cases that use it
+    /// (WP-4 forgot/reset-password tests run in a collection to avoid cross-test bleed).</summary>
+    public CapturingEmailService CapturedEmails { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
 
-        // Temporary WP-3 scaffold (brief §9) — proves the ICurrentTenant/HttpContext.User
-        // claims wiring end-to-end via a header-driven test auth handler. Retired once
-        // WP-4 issues real JWTs; the primary tenant-isolation proof is DbContext-level
-        // (CreateAppDbContext below), not this handler.
+        // WP-3's TestAuthHandler (header-driven X-Test-* claims bypass) is RETIRED as of
+        // WP-4, per its own doc comment's instruction and WP-4 brief section 16 point 3:
+        // the test host now uses the REAL production AddJwtBearer scheme (registered by
+        // Program.cs) and mints tokens via TestJwtTokenFactory, which calls the real
+        // ITokenService -- not a fake "Test" authentication scheme. A spoofed GarageId
+        // now requires forging a valid signature against the real (test-host) signing
+        // key, not just setting a header. appsettings.Integration.json supplies a fixed,
+        // non-secret, CSPRNG-generated test-only Jwt:SigningKey/Issuer/Audience (see
+        // JwtOptions.cs remarks) so JwtOptions' mandatory ValidateOnStart() passes for
+        // this host exactly as it does in Development/Production.
+
         builder.ConfigureTestServices(services =>
         {
-            services.AddAuthentication(TestAuthHandler.SchemeName)
-                .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TestAuthHandler>(
-                    TestAuthHandler.SchemeName, _ => { });
+            // Replace Program.cs's NoOpEmailService with a capturing double so
+            // forgot/reset-password tests can observe the generated reset link -- the
+            // anti-enumeration design (brief §14) never returns the raw token over HTTP,
+            // so this is the only way to recover it in a test (WP-4 brief §18).
+            services.RemoveAll<IEmailService>();
+            services.AddSingleton<IEmailService>(CapturedEmails);
+        });
+
+        // WP-4 is the first work package whose HTTP-level tests (AuthController) exercise
+        // the DI-registered AppDbContext -- everything through WP-3B went via
+        // CreateAppDbContext directly, bypassing this entirely. GarageOS.Api's own
+        // appsettings.json/appsettings.Testing.json carry an intentionally-empty
+        // ConnectionStrings:GarageOsDb (never a committed credential), so without this
+        // override the real login/refresh/me/etc. HTTP paths would fail against an empty
+        // Npgsql connection string. Point the host at the SAME database ConnectionString
+        // resolves to (set in InitializeAsync, which always completes before any test
+        // triggers host creation via CreateClient()/Services) -- this is also what makes
+        // AuthTestFixtures.SeedActiveUserAsync's direct-DbContext writes visible to the
+        // real HTTP login flow.
+        builder.ConfigureAppConfiguration((_, configBuilder) =>
+        {
+            configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:GarageOsDb"] = ConnectionString,
+                ["ConnectionStrings:PlatformDb"] = ConnectionString,
+            });
         });
     }
 

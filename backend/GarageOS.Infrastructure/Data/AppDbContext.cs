@@ -22,6 +22,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<GarageSequence> GarageSequences => Set<GarageSequence>();
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<Job> Jobs => Set<Job>();

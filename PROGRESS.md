@@ -290,3 +290,126 @@ security-severity concern (no HTTP surface, no auth/tenant-crossing code path to
 (`/tmp/wp4_brief.md`), incorporating Security Reviewer's three required MEDIUM changes
 and Technical Architect's six required documentation/completeness changes before/during
 implementation.
+
+---
+
+## WP-4: Authentication / JWT / Platform-Admin Claim Foundation (2026-08-27)
+
+**Specialist ownership:** Backend Engineer (implementation), reviewed at brief stage by
+Security Reviewer (3 required MEDIUM changes) and Technical Architect (6 required
+changes) before device implementation began; post-implementation gates run by Security
+Reviewer, QA Automation Engineer, and Technical Architect.
+
+**Implementation:** Full JWT (HS256) access-token issuance + rotating/revocable/
+reuse-detected refresh tokens, PBKDF2-HMAC-SHA256 password hashing
+(`Microsoft.AspNetCore.Identity.PasswordHasher<T>`, framework-free `IPasswordHasher`
+wrapper), and all six `/api/v1/auth/*` endpoints (login, refresh, logout,
+forgot-password, reset-password, me) per the approved brief. `AuthService` stays fully
+framework-free (no ASP.NET Core/EF/`Microsoft.Extensions.Options` reference), matching
+the codebase's existing `ICurrentTenant`/`TenantGuard` pattern — `JwtOptions`/
+`PasswordResetOptions` are bound via the normal `AddOptions<T>().ValidateOnStart()`
+pipeline in `Program.cs` and re-projected as plain objects for DI.
+
+**Anonymous-lookup problem (brief §1/§7) resolved:** `IUserAuthLookupRepository` is the
+one sanctioned `IgnoreQueryFilters()` cross-tenant `Users` read, scoped to exactly the
+pre-authentication flows (login/refresh/forgot-password lookups + the 3 lockout/
+password-hash writes); `/me` deliberately uses the normal tenant-filtered path instead
+(a claims/tenant mismatch resolves to not-found, not a leaked profile).
+
+**Platform-admin isolation:** No live `PlatformAdminAuthController`, no
+`/api/v1/platform/*` route of any kind — verified per the Owner's explicit constraint by
+`PlatformAdminRouteInventoryTests.cs` (endpoint-inventory reflection over
+`EndpointDataSource`, a controller-type reflection scan, and live 404 probes against
+plausible platform-admin paths). `GarageTenantRequirement`/`PlatformAdminRequirement`
+authorization policies enforce mutual exclusion structurally (claim presence only) —
+`TestJwtTokenFactory` mints test-only platform-admin tokens via the REAL production
+`ITokenService`, never a hand-rolled parallel token builder, replacing the retired
+`TestAuthHandler`.
+
+**Password-reset anti-enumeration (brief §13):** the HTTP request path
+(`AuthController.ForgotPassword`) does ZERO user-existence-dependent work by
+construction — format-regex check only, then an unconditional enqueue onto a bounded
+in-process `Channel` (capacity 1000, drop-oldest — Security Reviewer required change
+#3), returning 202 regardless. All existence-dependent work (DB lookup, token
+generation, `IEmailService.SendPasswordResetAsync`) happens in
+`PasswordResetRequestBackgroundService`, off the request/response path. Test-only
+`CapturingEmailService` replaces `NoOpEmailService` in `IntegrationTestFixture` so
+forgot/reset-password tests can recover the generated reset link (never exposed over
+HTTP).
+
+**Rate limiting made configuration-driven mid-implementation (not in the original
+brief):** the shared `IntegrationTestFixture` boots ONE `WebApplicationFactory` for the
+entire `Integration` xunit collection, so every TestServer request reports the same
+loopback IP — WP-4's own functional tests (login/refresh/forgot-password/
+reset-password) would otherwise all compete for one production-sized (5/min etc.)
+rate-limit budget and spuriously 429. Fixed by making all four policies'
+permit-limit/window values configuration-driven (`RateLimiting:*`, production-safe
+fallback defaults matching the brief exactly), with `appsettings.Testing.json` raising
+them to 1000 for the shared fixture and a new isolated-host `RateLimitingTests.cs`
+proving the tight production limit still genuinely enforces (429 + `Retry-After`) via
+its own `WebApplicationFactory` instance. This surfaced and fixed two real bugs along
+the way: (1) the rate-limit config was initially read eagerly into `var`s *before*
+`builder.Build()`, silently missing any test-only `ConfigureAppConfiguration` override —
+fixed by reading `builder.Configuration` lazily inside the `AddRateLimiter` callback,
+the same pattern the (working) DB connection-string override already used; (2) the 429
+rejection handler's `WriteAsJsonAsync` call was silently overwriting the
+`application/problem+json` content-type back to `application/json` — fixed by passing
+`contentType` explicitly to the correct overload.
+
+**Migration:** `AddUserLockoutColumns` — EF's diff combined the intended two units
+(users lockout columns; `password_reset_tokens` table) into one migration since both
+were new uncommitted model changes at generation time (Technical Architect confirmed
+this is architecturally fine, not worth splitting). Applied cleanly to both
+`pit961_integration_test` and `pit961_dev`.
+
+**Verification:** Full solution builds with 0 warnings/0 errors. **126/126 tests
+passing** against real PostgreSQL 15.19 (no Docker/Testcontainers/PG14/SQLite/InMemory
+substitute) — 121 `GarageOS.Tests.Integration` (75 pre-existing + 46 new/modified WP-4)
++ 5 `GarageOS.Tests.Unit`, zero regressions, confirmed via full combined suite runs (not
+just partitioned batches).
+
+**Security review (post-implementation):** Initial verdict **BLOCKED** — one HIGH
+finding: `AuthService.RefreshAsync` read `existing.RevokedAt` in application code and
+wrote the revoke in a LATER, separate `SaveChangesAsync` call, leaving a window where
+two concurrent presentations of the same still-valid refresh token could both pass the
+"not yet revoked" check before either write landed, both minting a live session with
+reuse-detection never firing. **Fixed** by making the token "claim" atomic:
+`IRefreshTokenRepository.TryClaimForRotationAsync` issues a single conditional SQL
+`UPDATE ... WHERE RevokedAt IS NULL` via EF Core's `ExecuteUpdateAsync` (bypassing the
+change tracker), and `AuthService.RefreshAsync` restructured to insert the replacement
+token row first (FK ordering), then treat a failed claim — whether from prior revocation
+or a lost race — identically as the reuse-detection signal (revoking the new row and
+every active session for the user). Added
+`Refresh_ConcurrentPresentationOfSameToken_ExactlyOneWinsAndReuseDetectionStillFires`
+(fires two genuinely concurrent `/refresh` calls via `Task.WhenAll`, verified stable
+across 5 repeated runs) as the regression proof. **KI-7 confirmed closed at the code
+level** — JWT signature/issuer/audience/expiry validation, `garage_id` claim integrity,
+and platform-admin/garage-tenant mutual exclusion all traced end-to-end by the Security
+Reviewer, not accepted on test names alone. Two LOW findings logged as KI-11 (rate-limit
+coverage asymmetry) and KI-14 (fixed `Retry-After` header value), non-blocking.
+
+**QA review:** **PASS WITH FINDINGS** (0 BLOCKER/CRITICAL) — independently re-verified
+by standing up its own real Postgres instance and re-running the full suite (126/126).
+2 MEDIUM findings (KI-10: email lookup case-sensitivity undocumented; a password-length
+boundary-value gap, closed immediately by adding
+`ResetPassword_PasswordExactlyAt{Minimum,Maximum}Length_Succeeds`) + 3 LOW findings
+(KI-11 through KI-13: rate-limit coverage asymmetry, missing malformed-body tests, email
+whitespace handling) logged as tracked Known Issues.
+
+**Technical Architect review:** **ACCEPT** — all 6 brief-stage required changes
+confirmed present as real code (framework-free layering, `JwtOptions`/
+`PasswordResetOptions` as plain re-projected objects, `IEmailService` governance
+comment, public `GarageTenantRequirement`/`PlatformAdminRequirement`, documented
+test-only signing key, multi-location forward-compatibility note on the `garage_id`
+claim). Confirmed a clean foundation for WP-5 (its own `IAuthorizationRequirement`s can
+compose alongside `GarageTenantRequirement` without modification here). One
+non-blocking stale-comment note (`JwtOptions.cs` referenced the wrong test-config
+filename) closed immediately.
+
+**WP-4 status: ACCEPTED.** Both required specialist gates (Security, QA) passed after
+the one HIGH finding was fixed and re-verified; Technical Architect accepted with no
+must-fix items.
+
+**Next:** WP-5 (Authorization Policies — 15% discount cap, $500 approval threshold)
+builds directly on WP-4's `GarageTenantRequirement`/authorization-policy framework, per
+the Owner's Device Execution Order.

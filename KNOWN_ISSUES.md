@@ -82,7 +82,7 @@ the cloud sandbox.
 
 ---
 
-### KI-3 — `/api/demo/config` ships unauthenticated (LOW, tracked)
+### KI-3 — `/api/demo/config` ships unauthenticated (LOW, **CLOSED** in WP-4)
 
 **Severity:** LOW (non-gating; flagged by Security Reviewer during WP-2's
 security-review step).
@@ -92,14 +92,15 @@ gate, unlike `/api/diagnostics/throw`) and returns a static, non-secret string
 with no authentication. Not an exposure today, but per its own doc comment
 it exists only to prove options-binding works end-to-end for WP-2 and should
 be removed once real feature endpoints exist.
-**Status:** Tracked. Remove `DemoEndpoints.cs` (and its `MapDemoEndpoints()`
-call in `Program.cs`) once WP-3+ introduces real endpoints that supersede its
-purpose as a proof-of-pattern.
+**Status:** **CLOSED.** `DemoEndpoints.cs` deleted and its `MapDemoEndpoints()`
+call removed from `Program.cs` during WP-4 (real auth endpoints now exist and
+supersede its proof-of-pattern purpose), closed opportunistically per the
+Owner's standing instruction.
 **Owner input needed?** No.
 
 ---
 
-### KI-4 — ProblemDetails `exception` extension field has no negative test (LOW, tracked)
+### KI-4 — ProblemDetails `exception` extension field has no negative test (LOW, **CLOSED** in WP-4)
 
 **Severity:** LOW (non-gating; flagged by QA Automation Engineer during WP-2's
 QA review).
@@ -109,9 +110,10 @@ field to the ProblemDetails body in `Development` (verified correct by code
 review and by Security Reviewer), but `ProblemDetailsTests` does not yet
 assert that the field is *absent* in the `Testing` environment it actually
 runs under — it only asserts the fields that are present.
-**Status:** Tracked as a small test-coverage addition; not blocking WP-2
-completion (the underlying behavior is already correct and was independently
-verified by Security Reviewer).
+**Status:** **CLOSED.** `UnhandledException_OutsideDevelopment_DoesNotIncludeExceptionExtensionField`
+added to `ProblemDetailsTests.cs` during WP-4, closed opportunistically per
+the Owner's standing instruction. Passing against the real `Testing`-environment
+host.
 **Owner input needed?** No.
 
 ---
@@ -219,4 +221,89 @@ hasn't silently regressed.
 against `pg_indexes` confirming both index names exist with their expected
 unique/partial-filter properties. Low priority — natural fit alongside any future
 migration-related work.
+**Owner input needed?** No.
+
+### KI-10 — Email lookup is case-sensitive with no documented decision (MEDIUM, tracked)
+
+**Severity:** MEDIUM (non-gating; flagged by QA Automation Engineer during WP-4's QA gate).
+**Affects:** WP-4 (`UserAuthLookupRepository.FindByEmailAsync`, login/forgot-password/
+reset-password flows), WP-3B (`AccountProvisioningService`, `users_email_idx`).
+**Description:** `users.email` is a plain Postgres `text` column with a case-sensitive
+unique index (`users_email_idx`), and no code path (login, forgot-password lookup,
+provisioning) normalizes/lowercases email on write or read. A user who registers as
+`User@Example.com` and later logs in as `user@example.com` receives the same generic 401
+as a wrong password — not a security hole (no bypass or data leak — every failure mode
+is already indistinguishable by design, per brief §12), but an unaddressed UX/product
+decision with zero test coverage of either behavior.
+**Status:** Tracked. Recommended follow-up: a Business Analyst/Product decision on
+whether email should be case-insensitive (typical for auth systems — e.g. Postgres
+`citext` column type or lowercasing on write), then a migration + normalization pass if
+so. Not a WP-4 blocker — the *current* behavior (case-sensitive) is internally consistent
+and secure, just undocumented as an intentional choice.
+**Owner input needed?** Optional — a product decision, not a security/correctness gate.
+
+---
+
+### KI-11 — Rate-limiting test coverage is asymmetric across the four policies (LOW, tracked)
+
+**Severity:** LOW (non-gating; flagged by QA Automation Engineer during WP-4's QA gate).
+**Affects:** WP-4 (`RateLimitingTests.cs`).
+**Description:** Only `auth-login` (5/min) has an automated test proving its configured
+limit is actually enforced (via an isolated `WebApplicationFactory` instance, since the
+shared `IntegrationTestFixture` intentionally raises all four limits to 1000/window for
+the functional-test suite — see `Program.cs`'s rate-limiter comment). `auth-refresh`
+(20/min), `auth-forgot-password` (3/10min), and `auth-reset-password` (5/10min) are wired
+identically but have zero automated proof they enforce their configured limits or are
+attached to the correct endpoints.
+**Status:** Tracked. Recommended follow-up: extend `RateLimitingTests.cs` with 3 more
+isolated-host cases (one per remaining policy), mirroring the existing `auth-login` test.
+Low priority — the underlying mechanism (`AddAuthRateLimitPolicy`) is identical across
+all four policies and is proven correct once; this is closing a coverage symmetry gap,
+not a suspected defect.
+**Owner input needed?** No.
+
+---
+
+### KI-12 — No malformed/missing request body tests on any auth endpoint (LOW, tracked)
+
+**Severity:** LOW (non-gating; flagged by QA Automation Engineer during WP-4's QA gate).
+**Affects:** WP-4 (`AuthController.cs`, all 6 endpoints).
+**Description:** No test sends an empty `{}` body, a body missing required fields, or a
+non-JSON body to any `/api/v1/auth/*` endpoint. Request DTOs (`AuthContracts.cs`) are
+plain records with no `[Required]`/data-annotation validation, so the exact resulting
+status code (ASP.NET Core's default model-binding 400 vs. something reaching
+`GlobalExceptionHandler`) is unverified.
+**Status:** Tracked. Recommended follow-up: a small parameterized test per endpoint
+asserting a 400 (not 500) for a malformed/empty body. Low priority — no evidence of an
+actual 500 today, this closes a verification gap, not a known defect.
+**Owner input needed?** No.
+
+---
+
+### KI-13 — Email whitespace handling untested (LOW, tracked)
+
+**Severity:** LOW (non-gating; flagged by QA Automation Engineer during WP-4's QA gate).
+**Affects:** WP-4 (same code paths as KI-10).
+**Description:** Same class of gap as KI-10 — a leading/trailing space in a submitted
+email (e.g. `" user@example.com"`) is not trimmed anywhere in login/forgot-password/
+reset-password, and untested. Likely to surface (or be decided) alongside KI-10's
+case-sensitivity decision, since both are "email normalization" and share the same
+lookup code path.
+**Status:** Tracked, bundle with KI-10's follow-up.
+**Owner input needed?** No.
+
+---
+
+### KI-14 — Rate limiter's `Retry-After` header is a fixed 60s regardless of the actual policy window (LOW, tracked)
+
+**Severity:** LOW (non-gating; flagged by Security Reviewer during WP-4's security gate —
+cosmetic, not a security issue).
+**Affects:** WP-4 (`Program.cs`'s `AddRateLimiter` → `OnRejected` handler).
+**Description:** Every 429 response sets `Retry-After: 60` unconditionally, even for the
+10-minute-window `auth-forgot-password`/`auth-reset-password` policies — a client that
+honors the header literally would retry too early and get rejected again.
+**Status:** Tracked. Recommended follow-up: thread the matched policy's actual window
+into `OnRejected` (available via `context.Lease`/`RateLimitLease` metadata) rather than a
+hardcoded constant. Low priority — purely a client-retry-efficiency nicety, no security
+or correctness impact (the server still correctly rejects until the real window elapses).
 **Owner input needed?** No.
