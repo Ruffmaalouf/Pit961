@@ -307,3 +307,23 @@ into `OnRejected` (available via `context.Lease`/`RateLimitLease` metadata) rath
 hardcoded constant. Low priority — purely a client-retry-efficiency nicety, no security
 or correctness impact (the server still correctly rejects until the real window elapses).
 **Owner input needed?** No.
+### KI-15 — Orphaned unrevoked replacement refresh-token row possible on crash between insert and claim (LOW, tracked)
+
+**Severity:** LOW (non-gating; flagged by Security Reviewer during WP-4's targeted
+remediation re-review of the refresh-token rotation-race HIGH finding, 2026-08-27).
+**Affects:** WP-4 (`AuthService.RefreshAsync` / `InsertRefreshTokenAsync`).
+**Description:** `RefreshAsync` inserts the replacement refresh-token row, then calls
+`TryClaimForRotationAsync` to atomically claim the old row. If the process is killed or
+the DB connection drops strictly between the insert committing and the claim call
+executing, the just-inserted replacement row remains in the table as an orphaned,
+non-revoked row, and the original parent token remains unrotated/still active. The raw
+(unhashed) secret for that orphaned row is held only in a local variable inside the
+interrupted `RefreshAsync` call and is never returned to any client (the HTTP response
+is only written on success), so the row is dead-by-construction and not externally
+reachable/exploitable -- this is a row-hygiene artifact, not a reopening of the
+concurrent-reuse race that HIGH finding covered.
+**Status:** Tracked. Recommended follow-up: a periodic sweep (or a `CreatedAt`-based
+filter in reuse-detection queries) for unclaimed, unrevoked replacement rows older than
+a few minutes. Low priority -- not reachable by any client, purely a dead-row cleanliness
+item.
+**Owner input needed?** No.

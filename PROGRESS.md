@@ -406,9 +406,33 @@ compose alongside `GarageTenantRequirement` without modification here). One
 non-blocking stale-comment note (`JwtOptions.cs` referenced the wrong test-config
 filename) closed immediately.
 
-**WP-4 status: ACCEPTED.** Both required specialist gates (Security, QA) passed after
-the one HIGH finding was fixed and re-verified; Technical Architect accepted with no
-must-fix items.
+**Security re-review (targeted remediation gate, formal, 2026-08-27):** Per PIT961
+operating rules -- a CRITICAL/HIGH Security finding may only be cleared by the Security
+Reviewer after remediation; a passing automated test run does not substitute for the
+independent Security gate -- the Dispatcher's own regression-test confirmation of the
+refresh-token race fix was **not** treated as closing the HIGH finding. A fresh snapshot
+of the remediated device code (containing `TryClaimForRotationAsync`, the restructured
+`AuthService.RefreshAsync`, and the new concurrent-reuse regression test) was staged into
+the review environment and the Security Reviewer agent was formally re-invoked for a
+targeted remediation review (not a full WP-4 restart), scoped exactly to the previously
+raised HIGH. The Security Reviewer read the remediated files directly, traced the call
+graph to rule out an alternate rotation path, walked through the two-concurrent-request
+scenario against real Postgres READ COMMITTED semantics, confirmed both row-count
+branches are handled correctly with no path to JWT issuance on a failed claim, confirmed
+reuse-detection fan-out is preserved, and confirmed the new regression test genuinely
+exercises the race against a real database. One new LOW/informational finding was
+raised (an orphaned, unrevoked, but never client-disclosed replacement-token row is
+possible if the process crashes between the insert and the claim call) and logged as
+KI-15 -- non-blocking. The Security Reviewer's literal verdict, recorded verbatim:
+
+> PASS — HIGH CLOSED
+
+The HIGH finding is now formally CLOSED by the Security Reviewer's own re-review, not by
+the Dispatcher's self-assessment.
+
+**WP-4 status: ACCEPTED.** All three required specialist gates -- Security (targeted
+re-review, PASS — HIGH CLOSED), QA (PASS WITH FINDINGS, 0 BLOCKER/CRITICAL), Technical
+Architect (ACCEPT, no must-fix items) -- have formally signed off.
 
 **Next:** WP-5 (Authorization Policies — 15% discount cap, $500 approval threshold)
 builds directly on WP-4's `GarageTenantRequirement`/authorization-policy framework, per
