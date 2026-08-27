@@ -4,6 +4,7 @@ using GarageOS.Application.Abstractions;
 using GarageOS.Application.Configuration;
 using GarageOS.Infrastructure.Data;
 using GarageOS.Infrastructure.Data.Platform;
+using GarageOS.Infrastructure.Data.Provisioning;
 using GarageOS.Infrastructure.Data.Seed;
 using GarageOS.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,7 @@ builder.Services.AddDbContext<PlatformDbContext>((sp, options) => options
     .UseSnakeCaseNamingConvention());
 
 builder.Services.AddScoped<ICurrentTenant, HttpContextCurrentTenant>();
+builder.Services.AddScoped<IAccountProvisioningService, AccountProvisioningService>();
 
 // Global ProblemDetails exception handling (WP-2 acceptance criterion: an
 // unhandled exception returns a consistent ProblemDetails envelope).
@@ -86,7 +88,8 @@ if (app.Environment.IsDevelopment())
 {
     using var seedScope = app.Services.CreateScope();
     var seedDbContext = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DevelopmentSeeder.SeedAsync(seedDbContext);
+    var seedProvisioning = seedScope.ServiceProvider.GetRequiredService<IAccountProvisioningService>();
+    await DevelopmentSeeder.SeedAsync(seedDbContext, seedProvisioning);
 }
 
 app.Run();

@@ -178,3 +178,45 @@ re-verify claim integrity (JWT signature validation, issuer/audience checks) onc
 tokens replace `TestAuthHandler`, rather than assuming WP-3's dual-enforcement pattern
 alone remains sufficient once a real, attacker-influenced claims source exists.
 **Owner input needed?** No.
+
+---
+
+### KI-8 — Bypass-protection regex has a coverage gap for `DbContext.Add(object)` overloads (MEDIUM, tracked)
+
+**Severity:** MEDIUM (non-gating; flagged by QA Automation Engineer during WP-3B's QA gate).
+**Affects:** WP-3B (`GarageOS.Tests.Unit/Architecture/GarageInsertBoundaryTests.cs`).
+**Description:** The source-scanning bypass-protection test's regex patterns
+(`Garages\.Add(Range)?\(`, `Set<Garage>().Add`, `INSERT INTO garages`) correctly catch
+today's known bypass shapes, but would not catch a hypothetical future call written as
+`_db.Add(new Garage {...})` or `_db.AddRange(garage, otherEntity)` (EF Core's non-generic
+`DbContext.Add(object)`/`AddRange(IEnumerable<object>)` overloads) or
+`context.Entry(x).State = EntityState.Added`. No such violation exists today (verified
+by direct grep across the whole backend) — the DB-level partial unique index
+(`garages_account_active_idx`) remains the airtight backstop regardless of call-site
+shape. This is a test/code-review-aid gap, not a live defect.
+**Status:** Tracked. Recommended follow-up: widen `GarageInsertBoundaryTests`'
+`BypassPatterns` to include the generic `.Add(Async)?\(\s*new\s+Garage\b` /
+`.AddRange\(...Garage...\)` shapes. Low priority — do when next touching that test file.
+**Owner input needed?** No.
+
+---
+
+### KI-9 — No direct Postgres-catalog assertion that both `garages` indexes coexist after migration (MEDIUM, tracked)
+
+**Severity:** MEDIUM (non-gating; flagged by QA Automation Engineer during WP-3B's QA gate).
+**Affects:** WP-3B (migration `MakeGaragesAccountActiveIndexUnique`, `GarageConfiguration.cs`).
+**Description:** `GarageConfiguration.cs`'s own comment documents a real bug that shipped
+during WP-3's review cycle: two unnamed `HasIndex` calls on `AccountId` silently collapsed
+into a single index because neither had a pinned `.HasDatabaseName(...)`. WP-3B's own
+migration re-touches this same index (`garages_account_active_idx`), and while
+`UniqueIndex_DirectDoubleInsertBypassingService_SecondInsertViolatesConstraint` proves the
+unique index itself works, no test queries the real Postgres catalog (e.g.
+`SELECT indexname FROM pg_indexes WHERE tablename='garages'`) to assert that **both**
+`garages_account_idx` (plain, non-unique) and `garages_account_active_idx` (unique,
+partial) exist simultaneously post-migration — i.e., that the original collapse bug
+hasn't silently regressed.
+**Status:** Tracked. Recommended follow-up: add a short schema-assertion integration test
+against `pg_indexes` confirming both index names exist with their expected
+unique/partial-filter properties. Low priority — natural fit alongside any future
+migration-related work.
+**Owner input needed?** No.

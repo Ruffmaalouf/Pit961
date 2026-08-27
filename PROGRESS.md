@@ -211,3 +211,82 @@ verification, per the Owner's explicit instruction.
 started; awaiting the next instruction. WP-4 (Authentication/JWT) is also now unblocked
 (depends on WP-3). WP-7/WP-8 (frontend tooling half) remain approved for parallel work
 per the Owner's standing instruction.
+
+---
+
+## WP-3B — Account/Garage Provisioning Service (2026-08-27)
+
+**Specialist ownership:** Backend Engineer authored the implementation brief
+(`/tmp/wp3b_brief.md`, produced in the Dispatcher's cloud-side working context) after
+reading the actual current repo state, not just the plan text — and flagged two
+deliberate deviations from the plan's literal wording rather than silently doing
+something else: (1) the concrete service implementation lives in
+`GarageOS.Infrastructure` rather than `GarageOS.Application` (Application cannot
+reference Infrastructure/`AppDbContext`); (2) the concurrency lock target is the parent
+`accounts` row, not the `garages` row the plan text literally suggested, because Postgres
+`FOR UPDATE` cannot lock a not-yet-existing ("phantom") row. Database Engineer reviewed
+the brief: **APPROVE WITH CHANGES** — one required addition, a documented pre-migration
+duplicate-check query with a remediation step for the unique-index migration. Because
+specialist sub-agents cannot reliably operate the Windows device directly, the Dispatcher
+acted as **Device Executor** for all file edits below — specialists own
+architecture/design/review only.
+
+**Implementation (Device Executor):** New files —
+`GarageOS.Application/Abstractions/IAccountProvisioningService.cs`,
+`GarageOS.Application/Accounts/GarageProvisioningDetails.cs`,
+`GarageOS.Application/Common/AccountAlreadyHasGarageException.cs`,
+`GarageOS.Application/Common/AccountNotFoundException.cs`,
+`GarageOS.Infrastructure/Data/Provisioning/AccountProvisioningService.cs`, migration
+`MakeGaragesAccountActiveIndexUnique` (incorporating Database Engineer's required
+pre-flight duplicate-check comment verbatim), `GarageOS.Tests.Unit/Architecture/GarageInsertBoundaryTests.cs`
+(source-scan bypass-protection test), `GarageOS.Tests.Integration/Provisioning/AccountProvisioningServiceTests.cs`
+(8 tests), `GarageOS.Tests.Integration/Provisioning/AccountProvisioningConcurrencyTests.cs`
+(2 tests, N=2 and N=10). Modified — `GarageConfiguration.cs` (`.IsUnique()` on the existing
+partial index), `DevelopmentSeeder.cs` (now calls `IAccountProvisioningService` exclusively
+for the garage insert; no direct `Garages.Add` remains), `Program.cs` (DI registration +
+seed-scope resolution). Zero HTTP endpoint added — verified by grep across `GarageOS.Api`.
+
+**Verification (Device Executor, real PostgreSQL 15.19, no Docker/Testcontainers/PG14/
+SQLite/InMemory substitute):** Full solution build: 0 warnings, 0 errors. Full test suite:
+**79/79 passing** (5 unit + 74 integration; WP-3B added 11 new tests, zero regressions
+against the WP-3 baseline of 68). Migration applied cleanly to both
+`pit961_integration_test` and `pit961_dev`. Pre-flight duplicate-check query run live
+against `pit961_dev` before migrating (0 rows, as expected on this dataset). Seed flow
+smoke-tested end-to-end through the real DI-wired service (not a test double): idempotent
+re-run against already-seeded data succeeded with no exceptions; a fresh run after
+`TRUNCATE` produced exactly 1 account / 1 garage / 1 garage_settings / 1 garage_sequences /
+5 users.
+
+**Database Engineer post-implementation review: ACCEPT.** Confirmed the one brief-stage
+required change (pre-flight duplicate-check documentation) was incorporated verbatim.
+Confirmed `GarageConfiguration.cs`/migration/model-snapshot are mutually consistent and
+`Down()` is a byte-for-byte-equivalent rollback to the pre-WP-3B schema. Re-confirmed the
+`accounts`-row-locking design is sound. Re-confirmed multi-location-readiness: the
+one-active-garage rule is enforced only by a *partial* unique index plus one service's
+in-process check, not a hardcoded 1:1 schema shape — relaxing it later is a small
+additive migration.
+
+**QA Automation Engineer gate: PASS WITH FINDINGS** (0 BLOCKER/CRITICAL — does not block
+acceptance). Independently confirmed every acceptance-criterion test is real (not
+trivially passing): duplicate-rejection, cross-account success, genuine N-way concurrency
+(separate `AppDbContext`/connection per attempt, real `Task.WhenAll`), bypass-protection
+scan scope justified, seed flow has no leftover direct insert, zero HTTP endpoint.
+Raised two MEDIUM findings, both logged as tracked follow-ups rather than gating this WP
+(neither reflects a live defect in the shipped code): **KI-8** (bypass-protection regex
+doesn't catch the generic `DbContext.Add(object)` overload shape — the DB-level unique
+index remains the airtight backstop regardless) and **KI-9** (no direct
+`pg_indexes`-catalog assertion that both `garages` indexes coexist post-migration, as a
+regression guard against WP-3's original index-collapse bug class).
+
+**Security review:** Not separately invoked for WP-3B — the Owner's specialist
+assignment for this WP was Backend Engineer (owner) + Database Engineer (reviewer) only,
+and neither the Database Engineer nor QA Automation Engineer gate surfaced any
+security-severity concern (no HTTP surface, no auth/tenant-crossing code path touched).
+
+**WP-3B status: ACCEPTED.**
+
+**Next:** Per the Owner's Device Execution Order, moving immediately into WP-4
+(Authentication/JWT) device implementation using the already-reviewed specialist brief
+(`/tmp/wp4_brief.md`), incorporating Security Reviewer's three required MEDIUM changes
+and Technical Architect's six required documentation/completeness changes before/during
+implementation.

@@ -27,8 +27,11 @@ public sealed class GarageConfiguration : IEntityTypeConfiguration<Garage>
         // This exact two-part bug shipped in the WP-3 review bundle: it produced only one index.
         builder.HasIndex(g => g.AccountId, "garages_account_idx")
             .HasDatabaseName("garages_account_idx");
+        // WP-3B: this is now the DB-level backstop for the Phase 1 one-active-garage-
+        // per-account rule (AccountProvisioningService is the in-process enforcement).
         builder.HasIndex(g => g.AccountId, "garages_account_active_idx")
             .HasDatabaseName("garages_account_active_idx")
-            .HasFilter("deleted_at IS NULL");
+            .HasFilter("deleted_at IS NULL")
+            .IsUnique();
     }
 }

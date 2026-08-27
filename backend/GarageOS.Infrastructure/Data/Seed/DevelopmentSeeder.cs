@@ -1,16 +1,23 @@
+using GarageOS.Application.Abstractions;
+using GarageOS.Application.Accounts;
 using GarageOS.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace GarageOS.Infrastructure.Data.Seed;
 
-/// <summary>Idempotent Development-only seed data (WP-3 brief §11). Invoked from
-/// Program.cs only under app.Environment.IsDevelopment() — never Production, never
-/// Testing (integration tests seed their own fixtures per-test, see TwoTenantFixture).
-/// Uses direct EF inserts rather than AccountProvisioningService, which does not
-/// exist until WP-3B.</summary>
+/// <summary>Idempotent Development-only seed data (WP-3 brief §11; updated WP-3B).
+/// Invoked from Program.cs only under app.Environment.IsDevelopment() — never
+/// Production, never Testing (integration tests seed their own fixtures per-test, see
+/// TwoTenantFixture). The Account is persisted directly (Accounts is a tenant root
+/// with no service of its own in Phase 1); the Garage -- and its
+/// GarageSettings/GarageSequence rows -- is created exclusively through
+/// IAccountProvisioningService, the one authoritative path for inserting into the
+/// garages table (WP-3B brief §9). This also proves GarageInsertBoundaryTests'
+/// bypass-protection scan reflects reality: the seeder itself no longer does a
+/// direct Garages.Add.</summary>
 public static class DevelopmentSeeder
 {
-    public static async Task SeedAsync(AppDbContext db)
+    public static async Task SeedAsync(AppDbContext db, IAccountProvisioningService provisioning)
     {
         if (await db.Accounts.AnyAsync(a => a.Id == SeedIds.PerformanceAutoGarageAccount))
         {
@@ -26,21 +33,18 @@ public static class DevelopmentSeeder
             Plan = "pro",
         };
         db.Accounts.Add(account);
+        await db.SaveChangesAsync();
 
-        // TODO(WP-3B): replace this direct insert with
-        // AccountProvisioningService.CreateGarageUnderAccount once WP-3B lands.
-        var garage = new Garage
-        {
-            Id = SeedIds.PerformanceAutoGarage,
-            AccountId = account.Id,
-            Name = "Performance Auto Garage",
-            Phone = "+961 1 234 567",
-            Address = "Beirut, Lebanon",
-        };
-        db.Garages.Add(garage);
-
-        db.GarageSettings.Add(new GarageSettings { GarageId = garage.Id });
-        db.GarageSequences.Add(new GarageSequence { GarageId = garage.Id });
+        // Ordering note: CreateGarageUnderAccountAsync does a real DB round-trip
+        // (SELECT ... FOR UPDATE against accounts), not a change-tracker-aware lookup,
+        // so the Account above must already be persisted before this call.
+        var garage = await provisioning.CreateGarageUnderAccountAsync(
+            account.Id,
+            new GarageProvisioningDetails(
+                Name: "Performance Auto Garage",
+                Phone: "+961 1 234 567",
+                Address: "Beirut, Lebanon",
+                Id: SeedIds.PerformanceAutoGarage));
 
         var users = new[]
         {
