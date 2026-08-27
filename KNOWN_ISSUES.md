@@ -32,11 +32,26 @@ InMemory. Nothing PostgreSQL-related was added to the repository or to
 binaries live outside the repo entirely, exactly as the Owner directed ("the
 repository should only contain normal application/test configuration and
 documentation — not bundled PostgreSQL binaries").
-`GarageOS.Tests.Integration`'s full suite (2/2) was run and passed against
-this real PostgreSQL 15.19 instance; the unreachable-DB fail-loud path was
-also verified separately. This resolves the local/verification side of KI-1.
-The CI side (GitHub Actions' native `services:` PostgreSQL 15+, per WP-2/WP-9)
-remains unaffected and unbuilt until WP-9.
+`GarageOS.Tests.Integration`'s full suite (2/2 at the time) was run and passed
+against this real PostgreSQL 15.19 instance; the unreachable-DB fail-loud path
+was also verified separately. This resolved the local/verification side of
+KI-1 as of WP-2.
+
+**CI side update (2026-08-27, WP-3):** a CI skeleton now exists —
+`.github/workflows/ci.yml`, added during WP-3's own "wired into CI" gate
+closure (the brief makes this WP-3's own acceptance criterion, not WP-9's;
+see `PROGRESS.md`'s WP-3 entry). It provisions PostgreSQL 15 via GitHub
+Actions' native `services:` container (not a substitute — this is real
+Postgres 15, matching the plan's WP-2/WP-9 CI design), applies both
+DbContexts' migrations, and runs the full `GarageOS.Tests.Unit` +
+`GarageOS.Tests.Integration` suite on every push/PR to `main`. It has not
+yet actually been exercised by a push/PR (device-side `dotnet test` remains
+the verified source of truth so far). **WP-9 is still not gating-complete**:
+it retains its own remaining approved scope — the Resend-SDK-leakage grep
+check, the "Rashid"-placeholder grep check, wiring in the frontend build once
+WP-8 exists, and the plan's stated "not gating-complete until WP-4/WP-5 suites
+exist" condition. WP-9's job going forward is to extend this skeleton, not to
+build CI from scratch.
 **Note for real developer machines:** a developer with normal admin/root on
 their own machine should simply install PostgreSQL 15+ the standard way (the
 official installer, or `apt`/`brew` with the PGDG repo added) — the user-space

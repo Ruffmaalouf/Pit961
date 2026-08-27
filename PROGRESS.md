@@ -131,7 +131,8 @@ as Device Executor (implemented, built, migrated against real PostgreSQL 15+, ra
 tenant-isolation test matrix); Database Engineer, QA Automation Engineer, and Security
 Reviewer each independently reviewed the resulting implementation; QA Lead ran the final
 gate. Commits `61b4bf9` (initial implementation), `067e4d1` (remediation of Database
-Engineer + QA Automation findings), `0fc3201` (remediation of QA Lead's two follow-ups).
+Engineer + QA Automation findings), `0fc3201` (remediation of QA Lead's two follow-ups),
+`fb975b9` (tracking-doc updates recording WP-3's acceptance).
 
 **Implementation (Device Executor):** `GarageOS.Domain` — 16 entities (`ITenantOwned`
 marker on 13, `ISoftDeletable` on `Job`), `PlatformAdmin` kept structurally separate under

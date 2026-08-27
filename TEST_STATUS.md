@@ -19,7 +19,15 @@ executed and observed to pass in this environment, not merely written.
 | WP-8 | Vitest + RTL, Playwright | NOT STARTED | — | — |
 | WP-9 | CI-enforced execution of all of the above | SKELETON IN PLACE | 2026-08-27 | `.github/workflows/ci.yml` builds + applies both DbContexts' migrations + runs `GarageOS.Tests.Unit`/`GarageOS.Tests.Integration` against a real Postgres 15 GitHub Actions service container on push/PR to `main`. Not yet run in anger (no push/PR has triggered it yet — device-side `dotnet test` is the verified source of truth so far). Not gating-complete until WP-4/WP-5 suites exist per the plan's Parallelization section. |
 
-**Environment note (2026-08-27):** `.NET 8 SDK` restore/build verified working
-in the device-bridge shell (see `PROGRESS.md`). A throwaway `dotnet new webapi`
-project restored and built successfully. No PIT961 application tests have
-been written or run yet.
+**Environment note (2026-08-27, superseded — kept for history):** `.NET 8 SDK`
+restore/build was originally verified working in the device-bridge shell via a
+throwaway `dotnet new webapi` project, before any PIT961 application test existed.
+
+**Current verified state (2026-08-27):** WP-2 and WP-3 application test suites
+now exist and pass. **68/68 tests passing** — 4 `GarageOS.Tests.Unit`
+(`DemoOptionsBindingTests` from WP-2, `TenantGuardTests` from WP-3) + 64
+`GarageOS.Tests.Integration` (`HealthCheckTests`/`ProblemDetailsTests` from
+WP-2, the 12-resource `TenantIsolation/` suite + `PlatformAdminUnreachabilityTests`
++ `QueryFilterCoverageTests` from WP-3) — run against real PostgreSQL 15.19
+(device-local instance; no Docker/Testcontainers/PG14/SQLite/InMemory
+substitute). See the per-WP rows above for the breakdown.
