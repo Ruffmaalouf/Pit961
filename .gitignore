@@ -8,8 +8,9 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
-appsettings.Development.json
-appsettings.*.Development.json
+# appsettings.json / appsettings.Development.json ARE committed (structure +
+# safe non-secret defaults only) per 13_phase1_execution_plan.md WP-2 acceptance
+# criteria. Only the local-secrets-override file is excluded:
 appsettings.Local.json
 appsettings.*.Local.json
 

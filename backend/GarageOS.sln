@@ -1,0 +1,58 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GarageOS.Api", "GarageOS.Api\GarageOS.Api.csproj", "{875E7937-E421-4E0F-A8DE-491A2F1E54D0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GarageOS.Application", "GarageOS.Application\GarageOS.Application.csproj", "{344CDD73-71AA-428A-A619-49451606F8C6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GarageOS.Domain", "GarageOS.Domain\GarageOS.Domain.csproj", "{A36B958D-B15C-49B7-9938-1104CF35CF62}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GarageOS.Infrastructure", "GarageOS.Infrastructure\GarageOS.Infrastructure.csproj", "{7C549D1F-2DB9-4493-A595-5261362C7240}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GarageOS.Tests", "GarageOS.Tests", "{19A5E530-101F-4F68-8070-D5DBCB3986FB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GarageOS.Tests.Unit", "GarageOS.Tests\GarageOS.Tests.Unit\GarageOS.Tests.Unit.csproj", "{6E9FBBFC-6D27-4765-9402-842B2BEA7D11}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GarageOS.Tests.Integration", "GarageOS.Tests\GarageOS.Tests.Integration\GarageOS.Tests.Integration.csproj", "{E81B174D-CA38-4A4A-9F86-696DD69C95E2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{875E7937-E421-4E0F-A8DE-491A2F1E54D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{875E7937-E421-4E0F-A8DE-491A2F1E54D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{875E7937-E421-4E0F-A8DE-491A2F1E54D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{875E7937-E421-4E0F-A8DE-491A2F1E54D0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{344CDD73-71AA-428A-A619-49451606F8C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{344CDD73-71AA-428A-A619-49451606F8C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{344CDD73-71AA-428A-A619-49451606F8C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{344CDD73-71AA-428A-A619-49451606F8C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A36B958D-B15C-49B7-9938-1104CF35CF62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A36B958D-B15C-49B7-9938-1104CF35CF62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A36B958D-B15C-49B7-9938-1104CF35CF62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A36B958D-B15C-49B7-9938-1104CF35CF62}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C549D1F-2DB9-4493-A595-5261362C7240}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C549D1F-2DB9-4493-A595-5261362C7240}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C549D1F-2DB9-4493-A595-5261362C7240}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C549D1F-2DB9-4493-A595-5261362C7240}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E9FBBFC-6D27-4765-9402-842B2BEA7D11}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E9FBBFC-6D27-4765-9402-842B2BEA7D11}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E9FBBFC-6D27-4765-9402-842B2BEA7D11}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E9FBBFC-6D27-4765-9402-842B2BEA7D11}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E81B174D-CA38-4A4A-9F86-696DD69C95E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E81B174D-CA38-4A4A-9F86-696DD69C95E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E81B174D-CA38-4A4A-9F86-696DD69C95E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E81B174D-CA38-4A4A-9F86-696DD69C95E2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{6E9FBBFC-6D27-4765-9402-842B2BEA7D11} = {19A5E530-101F-4F68-8070-D5DBCB3986FB}
+		{E81B174D-CA38-4A4A-9F86-696DD69C95E2} = {19A5E530-101F-4F68-8070-D5DBCB3986FB}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GarageOS.Application\GarageOS.Application.csproj" />
+    <ProjectReference Include="..\GarageOS.Domain\GarageOS.Domain.csproj" />
+    <ProjectReference Include="..\GarageOS.Infrastructure\GarageOS.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
