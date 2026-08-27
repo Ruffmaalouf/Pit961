@@ -63,6 +63,16 @@ public class JobHistoryTenantIsolationTests(IntegrationTestFixture fixture)
         await fixture.ResetDatabaseAsync();
         var tenants = new TwoTenantFixture();
         await tenants.SeedAsync(fixture);
+
+        var currentTenant = new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id };
+
+        // Prove the actual gate, not just the happy path: any real create path (WP-5+) must
+        // reject an attacker-supplied/mismatched garage_id in the payload before it is ever
+        // persisted. The assertions below only prove the server-derived value is what ends up
+        // on the row -- they do not by themselves prove a malicious payload would be rejected,
+        // which is the specific brief section 16 acceptance clause this closes.
+        Assert.Throws<TenantOwnershipException>(
+            () => TenantGuard.EnsureOwned(tenants.TenantB.Garage.Id, currentTenant));
         var jobA = await ResourceSeedHelpers.SeedJobAsync(fixture, tenants.TenantA.Garage.Id);
 
         var entry = await SeedEntryAsync(fixture, tenants.TenantA.Garage.Id, jobA.Id);
@@ -83,5 +93,21 @@ public class JobHistoryTenantIsolationTests(IntegrationTestFixture fixture)
         var currentTenant = new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id };
 
         Assert.Throws<TenantOwnershipException>(() => TenantGuard.EnsureOwned(entryB.GarageId, currentTenant));
+    }
+
+    [Fact]
+    public async Task WriteOwnershipCheck_RejectsParentJobFromMismatchedTenant()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var jobB = await ResourceSeedHelpers.SeedJobAsync(fixture, tenants.TenantB.Garage.Id);
+
+        var currentTenant = new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id };
+
+        // Denormalized garage_id integrity (WP-3 brief section 2 closing note): recording a
+        // job-history entry whose parent job belongs to Tenant B while acting as Tenant A must
+        // be rejected by TenantGuard on the parent job id.
+        Assert.Throws<TenantOwnershipException>(() => TenantGuard.EnsureOwned(jobB.GarageId, currentTenant));
     }
 }

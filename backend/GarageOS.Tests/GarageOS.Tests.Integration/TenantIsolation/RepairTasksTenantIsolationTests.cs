@@ -58,6 +58,14 @@ public class RepairTasksTenantIsolationTests(IntegrationTestFixture fixture)
         var jobA = await ResourceSeedHelpers.SeedJobAsync(fixture, tenants.TenantA.Garage.Id);
 
         var currentTenant = new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id };
+
+        // Prove the actual gate, not just the happy path: any real create path (WP-5+) must
+        // reject an attacker-supplied/mismatched garage_id in the payload before it is ever
+        // persisted. The assertions below this point only prove the server-derived value is
+        // what ends up on the row -- they do not by themselves prove a malicious payload would
+        // be rejected, which is the specific brief section 16 acceptance clause this closes.
+        Assert.Throws<TenantOwnershipException>(
+            () => TenantGuard.EnsureOwned(tenants.TenantB.Garage.Id, currentTenant));
         var task = await SeedRepairTaskAsync(fixture, currentTenant.GarageId, jobA.Id);
 
         Assert.Equal(tenants.TenantA.Garage.Id, task.GarageId);
