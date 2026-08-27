@@ -1,6 +1,12 @@
 using GarageOS.Api.Endpoints;
 using GarageOS.Api.Middleware;
+using GarageOS.Application.Abstractions;
 using GarageOS.Application.Configuration;
+using GarageOS.Infrastructure.Data;
+using GarageOS.Infrastructure.Data.Platform;
+using GarageOS.Infrastructure.Data.Seed;
+using GarageOS.Infrastructure.Security;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +24,22 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+
+// --- Multi-tenancy / data access (WP-3) -----------------------------------
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddDbContext<AppDbContext>((sp, options) => options
+    .UseNpgsql(builder.Configuration.GetConnectionString("GarageOsDb"))
+    .UseSnakeCaseNamingConvention());
+
+builder.Services.AddDbContext<PlatformDbContext>((sp, options) => options
+    .UseNpgsql(
+        builder.Configuration.GetConnectionString("PlatformDb")
+            ?? builder.Configuration.GetConnectionString("GarageOsDb"), // same physical DB in Phase 1
+        npgsqlOptions => npgsqlOptions.MigrationsHistoryTable("__ef_migrations_history_platform"))
+    .UseSnakeCaseNamingConvention());
+
+builder.Services.AddScoped<ICurrentTenant, HttpContextCurrentTenant>();
 
 // Global ProblemDetails exception handling (WP-2 acceptance criterion: an
 // unhandled exception returns a consistent ProblemDetails envelope).
@@ -56,6 +78,15 @@ app.MapDemoEndpoints();
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
     app.MapDiagnosticsEndpoints();
+}
+
+// Development-only seed data (WP-3 brief §11) — never Production, never Testing
+// (integration tests seed their own fixtures per-test).
+if (app.Environment.IsDevelopment())
+{
+    using var seedScope = app.Services.CreateScope();
+    var seedDbContext = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await DevelopmentSeeder.SeedAsync(seedDbContext);
 }
 
 app.Run();

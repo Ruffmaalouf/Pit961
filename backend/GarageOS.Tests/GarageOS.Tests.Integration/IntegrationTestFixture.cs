@@ -1,6 +1,14 @@
+using GarageOS.Application.Abstractions;
+using GarageOS.Infrastructure.Data;
+using GarageOS.Infrastructure.Data.Platform;
+using GarageOS.Tests.Integration.TestSupport;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Respawn;
 
@@ -25,7 +33,7 @@ namespace GarageOS.Tests.Integration;
 /// </summary>
 public sealed class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private static readonly string[] IgnoredTables = ["__EFMigrationsHistory"];
+    private static readonly string[] IgnoredTables = ["__EFMigrationsHistory", "__ef_migrations_history_platform"];
 
     // Null only when the schema genuinely has zero in-scope tables yet (true for all of
     // WP-2 — the schema itself lands in WP-3). Respawn's own Respawner.CreateAsync throws
@@ -42,6 +50,42 @@ public sealed class IntegrationTestFixture : WebApplicationFactory<Program>, IAs
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        // Temporary WP-3 scaffold (brief §9) — proves the ICurrentTenant/HttpContext.User
+        // claims wiring end-to-end via a header-driven test auth handler. Retired once
+        // WP-4 issues real JWTs; the primary tenant-isolation proof is DbContext-level
+        // (CreateAppDbContext below), not this handler.
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddAuthentication(TestAuthHandler.SchemeName)
+                .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TestAuthHandler>(
+                    TestAuthHandler.SchemeName, _ => { });
+        });
+    }
+
+    /// <summary>Constructs a standalone AppDbContext against the fixture's real Postgres
+    /// connection, with the given (fake) tenant — no HTTP involved. This is the primary
+    /// mechanism WP-3's tenant-isolation tests use to prove the global query filter and
+    /// TenantGuard both work per resource (brief §9/§14).</summary>
+    public AppDbContext CreateAppDbContext(ICurrentTenant currentTenant)
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(ConnectionString)
+            .UseSnakeCaseNamingConvention()
+            .Options;
+        return new AppDbContext(options, currentTenant);
+    }
+
+    /// <summary>Constructs a standalone PlatformDbContext against the fixture's real
+    /// Postgres connection — used only by the structural-unreachability tests.</summary>
+    public PlatformDbContext CreatePlatformDbContext()
+    {
+        var options = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseNpgsql(ConnectionString, npgsqlOptions =>
+                npgsqlOptions.MigrationsHistoryTable("__ef_migrations_history_platform"))
+            .UseSnakeCaseNamingConvention()
+            .Options;
+        return new PlatformDbContext(options);
     }
 
     public async Task InitializeAsync()
