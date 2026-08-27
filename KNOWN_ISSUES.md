@@ -98,3 +98,68 @@ runs under — it only asserts the fields that are present.
 completion (the underlying behavior is already correct and was independently
 verified by Security Reviewer).
 **Owner input needed?** No.
+
+---
+
+### KI-5 — No SQL-level column `DEFAULT`s in the WP-3 schema (LOW, tracked)
+
+**Severity:** LOW (non-gating; flagged by Database Engineer during WP-3's implementation
+review, concurred by QA Lead's final gate).
+**Affects:** WP-3 (`backend/GarageOS.Infrastructure/Data/Configurations/*.cs`,
+`Migrations/App/20260827120149_InitialSchema.cs`).
+**Description:** `11_engineering_handoff.md` §9/brief §2 specify SQL-level `DEFAULT`
+clauses on most columns (e.g. `subscription_status DEFAULT 'trial'`,
+`discount_limit_percent DEFAULT 15.00`). The implementation instead relies entirely on
+C# entity field initializers (e.g. `Status { get; set; } = "checked_in"` on `Job`) to
+supply defaults — correct and sufficient for every write path that exists today, since
+all Phase 1 writes go through EF Core entity construction (the dev seeder, all test
+helpers, and every future WP-5+ service). No SQL `DEFAULT` exists as a safety net for a
+write path that bypasses EF entity construction.
+**Status:** Tracked, not remediated in WP-3. QA Lead's final gate concurred this is
+correctly non-blocking for Phase 1 and recommended closing it opportunistically the next
+time any migration touches these tables — no later than either of two triggers: (a) any
+raw-SQL/BI/reporting tool is introduced (bundle with KI-6 below — same trigger), or
+(b) any bulk-insert/import/migration tooling that could construct rows outside the
+Domain entity classes.
+**Owner input needed?** No.
+
+---
+
+### KI-6 — `AppDbContext`/`PlatformDbContext` share one Postgres credential (LOW, tracked)
+
+**Severity:** LOW (non-gating; flagged by Security Reviewer during WP-3's security gate).
+**Affects:** WP-3 (`GarageOS.Api/appsettings.Development.json`, `Program.cs`).
+**Description:** Both DbContexts fall back to the same `GarageOsDb` connection string
+using the Postgres `postgres` superuser with local trust-auth. Platform/tenant separation
+is enforced entirely at the EF model-graph level (two separate `DbContext` classes) plus
+the `platform` schema — proven correct at three independent layers by
+`PlatformAdminUnreachabilityTests.cs` — but there is no Postgres role/grant boundary that
+would stop a connection authenticated with the app's credential from directly querying
+`platform.platform_admins` via raw SQL, if a developer ever wrote one. Not exploitable
+today: no raw-SQL code path exists anywhere in WP-3.
+**Status:** Tracked for Phase 2+, before any raw-SQL/BI/reporting tooling is added:
+separate least-privilege Postgres roles per DbContext (grant `PlatformDbContext`'s role
+`USAGE`/`SELECT`/etc. only on schema `platform`, and the App role only on `public`).
+**Owner input needed?** No.
+
+---
+
+### KI-7 — Dual tenant-enforcement shares one root of trust: `ICurrentTenant.GarageId` (informational, forward note for WP-4)
+
+**Severity:** Informational (not a WP-3 defect; flagged by Security Reviewer as a
+forward-looking note for WP-4's own security review).
+**Affects:** WP-4 (JWT/claims implementation) — informational only for WP-3.
+**Description:** The global EF Core query filter and `TenantGuard.EnsureOwned` are
+genuinely independent code paths for their two named failure modes (a filter bypass via
+raw SQL/`.IgnoreQueryFilters()` is still caught by `TenantGuard` if a write path calls
+it; a write path that forgets to call `TenantGuard` is still caught by the filter on
+every subsequent read). Neither layer, however, is independent of a corrupted or spoofed
+`ICurrentTenant.GarageId` value itself — both compare against the same source. Today
+`HttpContextCurrentTenant.cs` reads this from unvalidated test-only claims (`TestAuthHandler`,
+WP-3 scaffolding only, never registered in `Program.cs`) and fails closed on any
+missing/malformed claim (verified by Security Reviewer).
+**Status:** Not an action item for WP-3. WP-4's own security review must explicitly
+re-verify claim integrity (JWT signature validation, issuer/audience checks) once real
+tokens replace `TestAuthHandler`, rather than assuming WP-3's dual-enforcement pattern
+alone remains sufficient once a real, attacker-influenced claims source exists.
+**Owner input needed?** No.

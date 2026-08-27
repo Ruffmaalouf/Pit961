@@ -120,3 +120,93 @@ SQLite/EF-InMemory substitute; nothing added to the repository). See
 Backend Engineer), and WP-7 (Branding Configuration) / the frontend-tooling
 half of WP-8 can run in parallel once picked up, per the approved dependency
 graph.
+
+---
+
+## 2026-08-27 — WP-3 complete (ACCEPT WITH TRACKED FOLLOW-UPS)
+
+**WP-3 — Database Schema & Tenant Isolation: DONE / ACCEPTED.** Per the Device Execution
+Protocol: Database Engineer produced the implementation brief; Company Dispatcher acted
+as Device Executor (implemented, built, migrated against real PostgreSQL 15+, ran the
+tenant-isolation test matrix); Database Engineer, QA Automation Engineer, and Security
+Reviewer each independently reviewed the resulting implementation; QA Lead ran the final
+gate. Commits `61b4bf9` (initial implementation), `067e4d1` (remediation of Database
+Engineer + QA Automation findings), `0fc3201` (remediation of QA Lead's two follow-ups).
+
+**Implementation (Device Executor):** `GarageOS.Domain` — 16 entities (`ITenantOwned`
+marker on 13, `ISoftDeletable` on `Job`), `PlatformAdmin` kept structurally separate under
+`Domain/Platform`. `GarageOS.Application` — `ICurrentTenant`, `TenantGuard.EnsureOwned`
+(explicit write-ownership check), `TenantOwnershipException`,
+`TenantContextUnavailableException`. `GarageOS.Infrastructure` — `AppDbContext` (16
+DbSets, reflection-based global query filters over `ITenantOwned`+`ISoftDeletable`) and
+`PlatformDbContext` (schema `platform`, `platform_admins` only, separate migrations-history
+table), 16 EF entity configurations (CHECK constraints, precision, indexes, no-cascade
+FKs, all cross-checked against `11_engineering_handoff.md` §9 verbatim), both design-time
+factories, idempotent dev seeder matching §61 exactly (incl. the mandatory John
+Smith/BMW 328i/91850-mileage §62 scenario), `HttpContextCurrentTenant` (fails closed on
+every missing/malformed-claim path).
+
+**Bug caught and fixed before any specialist review:** `AppDbContext.OnModelCreating`'s
+initial `ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly)` call scanned the
+whole `GarageOS.Infrastructure` assembly regardless of folder, silently pulling
+`PlatformAdminConfiguration` into the App model/migration — a direct violation of the
+platform/tenant separation requirement. Fixed with the namespace-excluding predicate
+overload; migrations regenerated from the corrected model; verified via `grep -c
+platform_admins` on the App migration → 0.
+
+**Database Engineer implementation review: APPROVE WITH FOLLOW-UPS.** Found and the
+Device Executor fixed: (1) `GarageConfiguration.cs` was only creating one of two required
+indexes on `garages.account_id` (`garages_account_active_idx` silently overwrote
+`garages_account_idx`, an EF Core "two unnamed HasIndex calls on the same property
+collapse" pitfall compounded by EFCore.NamingConventions recomputing database names
+unless explicitly pinned) — fixed with the named `HasIndex(expr, name)` overload plus
+explicit `.HasDatabaseName()` on both, applied via a new migration
+(`FixGaragesAccountIndex`) against real Postgres, verified via `\di`; (2) missing unit
+coverage for `TenantGuard.EnsureOwned`'s happy path — added `TenantGuardTests.cs`;
+(3) missing meta-test proving the query-filter loop covers every `ITenantOwned` entity —
+added `QueryFilterCoverageTests.cs`, reflection-based in both directions. One item left as
+a tracked non-blocker: no SQL-level column `DEFAULT`s (`KNOWN_ISSUES.md` KI-5).
+
+**QA Automation review: PASS WITH NON-BLOCKING NOTES**, one significant finding: the
+`GarageId_CannotBeClientSupplied_OnCreate` test was tautological in all 12
+tenant-isolation test files — it only proved the server-correctly-set `garage_id`
+persisted, never actually attempted a mismatched/attacker-supplied value, so it gave no
+real evidence against brief §16's "mismatched-payload case" despite its name. Fixed: every
+file now also asserts `TenantGuard.EnsureOwned` throws given a genuinely mismatched
+tenant's `garage_id`. Also flagged 3 of 7 child-of-parent resources (Invoices, Payments,
+JobHistory) missing the 5th parent-mismatch test — fixed, now 7 of 7.
+
+**Security review: PASS**, no CRITICAL/HIGH findings. Two LOW findings, both correctly
+scoped as out-of-WP-3-scope and tracked: shared Postgres credential across both
+DbContexts (`KNOWN_ISSUES.md` KI-6, Phase 2+ item) and the dual-enforcement pattern's
+shared root of trust in `ICurrentTenant.GarageId` (`KNOWN_ISSUES.md` KI-7, WP-4's own
+security review must re-verify once real JWT claims exist). Confirmed
+`HttpContextCurrentTenant` fails closed on every path, confirmed `platform_admins`
+unreachability at three independent layers, confirmed the QA tautology fix is real by
+direct reading.
+
+**QA Lead final gate: ACCEPT WITH TRACKED FOLLOW-UPS.** Independently reconciled the
+66-test count by direct `[Fact]` count (not taken on faith), spot-checked the index fix
+and tautology fix personally, concurred KI-5 is correctly non-blocking for Phase 1. Raised
+two new findings, both closed before reporting WP-3 as accepted: (A) `Vehicles`/`Jobs`
+were also missing their own parent-mismatch test (`Vehicle`→`Customer`,
+`Job`→`Customer`/`Vehicle`) — fixed, now 9 of 9 eligible resources covered; (B) the brief
+itself makes "wired into CI" WP-3's own acceptance criterion (not WP-9's), but no CI
+config existed anywhere in the repo — closed by adding `.github/workflows/ci.yml`
+(DevOps Engineer specialist-authored, Device Executor-committed): builds, applies both
+DbContexts' migrations, and runs the full test suite against a real PostgreSQL 15 GitHub
+Actions service container on every push/PR to `main`. This is a skeleton — WP-9 remains
+responsible for its own additional scope (Resend-SDK-leakage/"Rashid"-placeholder grep
+checks, frontend build once WP-8 exists, gating-complete status after WP-4/WP-5 land).
+
+**Final verified state:** `dotnet build` clean (0 warnings/errors) and `dotnet test`
+**68/68 passing** (4 unit + 64 integration) against real PostgreSQL 15.19 on the device,
+migrations applied fresh to a dropped-and-recreated database. No Docker, Testcontainers,
+PostgreSQL 14 substitute, or SQLite/EF InMemory substitute used anywhere in this WP's
+verification, per the Owner's explicit instruction.
+
+**Next:** WP-3B (Account/Garage Provisioning Service) is now unblocked per the Owner's
+"do not begin WP-3B until WP-3 is accepted" instruction — WP-3 is now accepted. Not yet
+started; awaiting the next instruction. WP-4 (Authentication/JWT) is also now unblocked
+(depends on WP-3). WP-7/WP-8 (frontend tooling half) remain approved for parallel work
+per the Owner's standing instruction.
