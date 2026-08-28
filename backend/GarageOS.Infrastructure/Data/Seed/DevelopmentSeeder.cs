@@ -53,6 +53,7 @@ public static class DevelopmentSeeder
             new User { Id = SeedIds.UserAhmedHassan, GarageId = garage.Id, Email = "ahmed.hassan@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Ahmed Hassan", Role = "mechanic" },
             new User { Id = SeedIds.UserHassanAli, GarageId = garage.Id, Email = "hassan.ali@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Hassan Ali", Role = "mechanic" },
             new User { Id = SeedIds.UserMaya, GarageId = garage.Id, Email = "maya@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Maya", Role = "accountant" },
+            new User { Id = SeedIds.UserRimaHaddad, GarageId = garage.Id, Email = "rima.haddad@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Rima Haddad", Role = "manager" },
         };
         db.Users.AddRange(users);
 

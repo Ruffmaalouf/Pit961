@@ -327,3 +327,67 @@ filter in reuse-detection queries) for unclaimed, unrevoked replacement rows old
 a few minutes. Low priority -- not reachable by any client, purely a dead-row cleanliness
 item.
 **Owner input needed?** No.
+
+
+---
+
+### KI-16 -- EstimateMutationBoundaryTests' DbContext-variable bypass guard is anchored on the `db`/`_db` naming convention, not full semantic analysis (LOW, tracked)
+
+**Severity:** LOW (non-gating; self-disclosed in the fix's own doc comment when written,
+re-confirmed as still live by QA Automation Engineer during WP-5's round-2 adversarial
+architecture-test review, 2026-08-27).
+**Affects:** WP-5 (`GarageOS.Tests.Unit/Architecture/EstimateMutationBoundaryTests.cs`,
+the `\b_?db\s*\.\s*Update(Range)?\s*\(` / `Attach(Range)?` block-list patterns that
+close round-1 Bypass A -- a non-generic `DbContext.Update(entity)`/`Attach(entity)` call
+that mutates without the text "Estimates.Update("/"Estimates.Attach(" ever appearing).
+**Description:** That fix is anchored on this codebase's own `db`/`_db` variable-name
+convention for `AppDbContext` (confirmed universal by grep at the time of the fix), not on
+the variable's actual declared/inferred TYPE. A future file that names its `AppDbContext`
+instance something else (e.g. `AppDbContext context; context.Update(estimate);`) would
+evade this specific pattern while every other guard in the same file (the DbSet-rooted
+patterns, the ExecuteUpdateAsync statement-scoped check, the AsNoTracking whitelist) stays
+fully effective. Zero existing legitimate uses of any non-`db`/`_db`-named `AppDbContext`
+variable anywhere in the solution today (confirmed by grep), so this is a forward-looking
+gap, not a live, exploitable one against any code that exists now.
+**Status:** **CLOSED.** QA Lead's independent WP-5 QA gate review disagreed with
+accepting this as a tracked residual: an unqualified (not `db`/`_db`-anchored) pattern
+has zero false-positive risk against the current codebase (confirmed by grep --
+`.Update(`/`.UpdateRange(`/`.Attach(`/`.AttachRange(` have ZERO legitimate call sites
+anywhere in the solution, including inside the allow-listed
+`EstimateMutationRepository.cs` itself), so the naming-convention anchor was an
+unnecessarily narrow choice, not a necessary one. Fixed by widening
+`EstimateMutationBoundaryTests.cs`'s two Bypass-A patterns to match `.Update(Range)?(`/
+`.Attach(Range)?(` regardless of the receiver variable's name -- no Roslyn/semantic
+analysis needed, a one-line regex change. Re-verified: full solution build clean, 30/30
+unit tests pass. No remaining gap for this specific bypass shape.
+**Owner input needed?** No.
+
+
+---
+
+### KI-17 -- Interpolation-hole masking bypass in SourceScanUtilities.MaskLiteralsAndComments (found and closed pre-commit during WP-5 QA gate, 2026-08-27)
+
+**Severity:** Was CRITICAL had it shipped; found and fixed before any commit, so recorded
+here for audit-trail completeness rather than as an open risk.
+**Affects:** WP-5 (`GarageOS.Tests.Unit/Architecture/SourceScanUtilities.cs`, the shared
+masking helper introduced during round-2 remediation and used by both
+`EstimateMutationBoundaryTests.cs` and `AuthorizationAttributeMisuseTests.cs`).
+**Description:** QA Lead's independent WP-5 QA gate review found that the first version
+of `MaskLiteralsAndComments` treated an INTERPOLATED string ($"...", $@"...") exactly
+like a plain string literal -- blanking its entire content, including the code inside
+`{ }` interpolation holes. But hole content is live, executing C# code, not string data
+(`$"{db.Estimates.Update(e)}"` really does call `.Update(` at runtime). QA Lead confirmed
+by execution that a real `Estimates.Update(` call hidden inside an interpolation hole
+was fully invisible to both `EstimateMutationBoundaryTests` checks (both tests passed
+when they should have failed) -- a more serious bypass than either round-2 finding, since
+it defeated the primary, unqualified `Estimates.Update(`/`Estimates.Attach(` pattern
+itself, not just a narrower anchor choice.
+**Status:** **CLOSED**, same day, before any commit. Fixed by giving interpolated
+strings hole-aware handling: template text outside `{ }` is masked as before; code
+inside a `{ }` hole is left completely unmasked so it stays visible to every downstream
+check, while a nested string/char literal declared inside a hole still has its own
+content masked (closing the same class of bypass even when nested). Doubled braces
+(`{{`/`}}`, C#'s literal-brace escape) are recognized and masked as template text, not
+mistaken for a hole. Re-verified: full solution build clean, 30/30 unit tests pass, and
+QA Lead's own PoC shape re-run to confirm it is now correctly flagged.
+**Owner input needed?** No.

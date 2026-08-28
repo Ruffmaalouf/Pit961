@@ -18,7 +18,7 @@ public sealed class EstimateConfiguration : IEntityTypeConfiguration<Estimate>
         builder.Property(e => e.Total).HasPrecision(12, 2);
 
         builder.ToTable(t => t.HasCheckConstraint("ck_estimates_status",
-            "status IN ('draft','sent','approved','partially_approved','rejected','superseded')"));
+            "status IN ('draft','sent','pending_owner_approval','approved','partially_approved','rejected','superseded')"));
 
         builder.HasOne<Garage>().WithMany().HasForeignKey(e => e.GarageId).OnDelete(DeleteBehavior.NoAction);
         builder.HasOne<Job>().WithMany().HasForeignKey(e => e.JobId).OnDelete(DeleteBehavior.NoAction);

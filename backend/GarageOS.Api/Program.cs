@@ -5,12 +5,14 @@ using GarageOS.Api.Middleware;
 using GarageOS.Application.Abstractions;
 using GarageOS.Application.Auth;
 using GarageOS.Application.Common;
+using GarageOS.Application.Estimates;
 using GarageOS.Application.Configuration;
 using GarageOS.Infrastructure.BackgroundJobs;
 using GarageOS.Infrastructure.Data;
 using GarageOS.Infrastructure.Data.Auth;
 using GarageOS.Infrastructure.Data.Platform;
 using GarageOS.Infrastructure.Data.Provisioning;
+using GarageOS.Infrastructure.Data.Estimates;
 using GarageOS.Infrastructure.Data.Seed;
 using GarageOS.Infrastructure.Email;
 using GarageOS.Infrastructure.Security;
@@ -158,9 +160,25 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("GarageTenant", policy => policy.Requirements.Add(new GarageTenantRequirement()));
     options.AddPolicy("PlatformAdminOnly", policy => policy.Requirements.Add(new PlatformAdminRequirement()));
+    // WP-5 brief §3: resource-based, never attached via a bare [Authorize(Policy=...)]
+    // attribute -- see DiscountLimitRequirement.cs / EstimateApprovalThresholdRequirement.cs
+    // doc comments and AuthorizationAttributeMisuseTests for why. Invoked explicitly via
+    // IAuthorizationService.AuthorizeAsync(user, resource, policyName) from inside
+    // AspNetBusinessRuleAuthorizer.
+    options.AddPolicy("DiscountLimit", policy => policy.Requirements.Add(new DiscountLimitRequirement()));
+    options.AddPolicy("EstimateApprovalThreshold", policy => policy.Requirements.Add(new EstimateApprovalThresholdRequirement()));
 });
 builder.Services.AddSingleton<IAuthorizationHandler, GarageTenantHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, PlatformAdminHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, DiscountLimitHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, EstimateApprovalThresholdHandler>();
+
+// WP-5 brief §4 -- Application stays framework-free, same split as
+// ICurrentTenant/HttpContextCurrentTenant above.
+builder.Services.AddScoped<IBusinessRuleAuthorizer, AspNetBusinessRuleAuthorizer>();
+builder.Services.AddScoped<IEstimateMutationRepository, EstimateMutationRepository>();
+builder.Services.AddScoped<EstimateDiscountService>();
+builder.Services.AddScoped<EstimateApprovalService>();
 
 // Sliding-window rate limiters, partitioned by remote IP (WP-4 brief §15). Real-IP
 // resolution behind a reverse proxy (X-Forwarded-For trust) is deferred per Decision #5

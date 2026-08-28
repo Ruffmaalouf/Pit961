@@ -437,3 +437,125 @@ Architect (ACCEPT, no must-fix items) -- have formally signed off.
 **Next:** WP-5 (Authorization Policies — 15% discount cap, $500 approval threshold)
 builds directly on WP-4's `GarageTenantRequirement`/authorization-policy framework, per
 the Owner's Device Execution Order.
+
+## WP-5: Authorization Policies (discount 15% cap, $500 approval threshold)
+
+**Brief:** Backend Engineer drafted the implementation brief (resource-based
+`DiscountLimitRequirement`/Handler and `EstimateApprovalThresholdRequirement`/Handler,
+policy registration, application-service enforcement points, tenant-boundary layering,
+single-authoritative-mutation-path design, bypass-protection strategy, 22-item test
+matrix). Technical Architect reviewed and required changes; final verdict **ACCEPT WITH
+REQUIRED CHANGES**, incorporated before implementation began. Per the Owner's explicit
+instruction, no generic rules engine was built -- two narrow, purpose-built requirement/
+handler pairs only.
+
+**Implementation:** Device-executed by the Dispatcher (specialists do not have device
+access; the Device Execution Protocol was followed throughout -- specialists own design/
+review, the Dispatcher performs the actual device-bound file edits). `DiscountLimitHandler`
+enforces a 15.00% manager cap (owner unrestricted, all other roles denied outright).
+`EstimateApprovalThresholdHandler` enforces a $500.00 threshold, role-blind past the
+tenant check -- its `Succeeded == false` on `requires_owner_approval` is a deliberate
+ROUTING signal, not a rejection, and the doc comments on both handlers explicitly warn
+against ever attaching either policy via a bare `[Authorize(Policy = ...)]` attribute
+(resource-based policies must go through `IAuthorizationService.AuthorizeAsync(user,
+resource, policyName)` explicitly). `EstimateMutationRepository` was established as the
+sole authoritative writer of `Estimate.DiscountAmount/Total/Status`, using the same
+fresh-`AsNoTracking`-read-plus-fresh-refetch-write pattern WP-3B's
+`AccountProvisioningService` established, closing the "ambient tracked-instance flush"
+bypass vector by construction. Zero new HTTP endpoints, per the Owner's explicit "no fake
+Phase 3 endpoints" instruction -- tests stay at handler/application-service/
+authorization-infrastructure level.
+
+**Bypass-protection hardening (four rounds, this session):** The Owner's standing
+instruction -- "Do not merely grep once and call this satisfied. Create repeatable
+automated protection where appropriate" -- was taken seriously and, in retrospect,
+justified: three separate reviewers, working independently in sequence, each found a
+real, execution-confirmed bypass of the previous round's fix.
+
+- **Round 1 (QA Automation Engineer)**, adversarially writing and running PoC bypass
+  code rather than just reading the regexes, found and the Dispatcher fixed 3 real
+  bypasses: EF Core's non-generic `DbContext.Update(entity)`/`Attach(entity)` overloads
+  evading a DbSet-rooted regex; a long `.Where()`-chain LINQ query pushing
+  `ExecuteUpdateAsync(` past a fixed 200-character window; a named-constant
+  policy-name reference evading a literal-string block-list on
+  `AuthorizationAttributeMisuseTests`. Two lesser test-quality findings (an ordering
+  test that didn't actually verify ordering; a rounding test that never exercised a
+  real rounding decision) were fixed in the same pass.
+- **Round 2 (QA Automation Engineer)**, asked explicitly to try to evade its own
+  round-1 fixes, found and the Dispatcher fixed 2 more: a `;` character embedded
+  inside an `Estimates`-query `.Where()` string-literal value defeating naive
+  `text.Split(';')` statement-scoping; C# attribute-stacking
+  (`[HttpPost(...), Authorize(Policy = "...")]`) defeating a "line must start with
+  `[Authorize`" real-usage heuristic. Both closed by introducing a shared
+  `SourceScanUtilities.MaskLiteralsAndComments` helper that blanks string/char-literal
+  and comment CONTENT (preserving length/line-breaks) before any pattern-matching or
+  statement-splitting runs.
+- **Round 3 (QA Lead's own independent gate review)** went further than either
+  requested round and found a bypass of the round-2 fix itself: an interpolated
+  string's `{ }` hole contains live, executing code, but the first version of
+  `MaskLiteralsAndComments` blanked hole content exactly like literal text --
+  `$"{db.Estimates.Update(e)}"` was fully invisible to every downstream check.
+  QA Lead's gate verdict was **BLOCKED** on this CRITICAL finding, plus a
+  reclassification of the earlier-accepted KI-16 (`db`/`_db` naming-convention
+  anchor) from an acceptable tracked residual to MAJOR, since grep confirmed zero
+  legitimate `.Update(`/`.Attach(` call sites exist anywhere in the solution. Both
+  fixed (hole-aware masking that leaves live code inside `{ }` unmasked while still
+  masking nested literals within holes; the Update/Attach patterns widened to be
+  fully unanchored). QA Lead re-verified independently against a refreshed snapshot
+  (initially, correctly, refusing to sign off from a description alone when the first
+  snapshot handoff was stale) and returned **PASS**.
+- **Round 4 (Security Reviewer's own independent gate review)**, explicitly asked to
+  give the four-times-iterated mechanism real scrutiny rather than assume soundness,
+  found a bypass of the round-3 fix: the nested-string branch inside a hole
+  unconditionally assumed every nested literal was plain, ignoring its actual `@`/`$`
+  prefix -- a nested interpolated string's own hole was wrongly blanked (hiding a
+  real call), and a nested verbatim string's backslash was wrongly treated as a
+  regular-string escape, running the mask past the literal's real terminator and
+  corrupting everything scanned after it. Security Reviewer's gate verdict was
+  **BLOCKED** on this HIGH finding. Fixed by detecting the same prefix shapes inside a
+  hole that the top-level dispatcher already detects. Security Reviewer re-verified
+  independently -- again refusing an unrefreshed-snapshot sign-off first -- with two
+  novel payloads beyond the ones it originally reported (mixed verbatim/interpolated
+  prefix ordering; three levels of nesting depth) and returned **PASS**, noting no
+  further bypass found and that the fix is not depth-limited.
+
+Both KI-16 and KI-17 are recorded CLOSED in `KNOWN_ISSUES.md` with the full history.
+No production code was ever affected by any of the four rounds -- every finding was in
+`GarageOS.Tests.Unit/Architecture/`, test-only source-scanning infrastructure -- but each
+was treated with the same rigor as a production-code finding, consistent with this
+session's established practice (and the Owner's explicit standing instruction) that a
+passing automated check is not itself proof of soundness against an adversarial reviewer
+who actually tries to break it.
+
+**QA Lead gate:** **PASS** (see round 3 above for the interpolation-hole finding this
+gate itself surfaced and required fixed before passing). Independently verified the full
+22-item mandatory test matrix directly in the test files (not just by name), confirmed no
+fake Phase 3 endpoints exist (grep: zero controllers reference the new services), and
+independently re-ran the full build/PoC/test cycle itself rather than trusting the
+Dispatcher's report.
+
+**Security Reviewer gate:** **PASS** (see round 4 above for the nested-literal-in-hole
+finding this gate itself surfaced and required fixed before passing). Independently
+verified every item on the Owner's checklist: no client-only enforcement (zero HTTP
+surface exists yet to bypass); no role-check shortcuts around either handler; no
+alternate write path to the guarded Estimate columns (verified by direct whole-solution
+grep, not by trusting the architecture tests' own self-description); tenant mismatch
+fails closed in both handlers (read the actual code, not just the tests); a
+platform-admin token structurally cannot satisfy either policy and vice versa (verified
+via `TokenService.IssuePlatformAdminAccessToken`'s claim shape, not just "the policies
+are separate"); Accountant/Mechanic correctly excluded from discount authority and
+correctly still role-blind-subject to the $500 threshold; extensibility confirmed --
+a future policy needs no change to either existing handler. One non-blocking observation
+logged (not a finding): `EstimateApprovalService.RouteStatusAsync` writes a
+caller-supplied status string with only the DB CHECK constraint as a backstop today --
+flagged for whoever wires the future HTTP endpoint to add application-layer validation
+at that point, not urgent now since no endpoint exists yet to supply an untrusted value.
+
+**WP-5 status: ACCEPTED.** Both required specialist gates -- QA Lead (PASS, after one
+CRITICAL finding fixed and re-verified) and Security Reviewer (PASS, after one HIGH
+finding fixed and re-verified) -- have formally signed off, each via genuine independent
+re-verification against a freshly refreshed code snapshot, not by trusting a description
+of the fix.
+
+**Next:** Commit WP-5 to git; update tracking docs (done, this entry); WP-6 (Email /
+Resend) and WP-7 (Branding Configuration) are both unblocked and ready to start.
