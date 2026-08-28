@@ -69,6 +69,18 @@ jobs:
       - name: Check for placeholder brand name ("Rashid")
         run: bash scripts/ci/check-no-legacy-brand.sh
 
+      # WP-6 brief / 11_engineering_handoff.md §11A (Owner-mandated, blocking, CI-wired --
+      # not a one-off manual grep). Fails the build the moment any file other than
+      # ResendEmailService.cs references the Resend API host, proving the Resend SDK/API
+      # boundary stays confined to that one class (Decision #8). See the script's own
+      # header comment for full scope/rationale. The required negative-test proof was run
+      # manually against this exact script before this step was wired in: a
+      # "https://api.resend.com/emails" literal was introduced in a file other than
+      # ResendEmailService.cs, the check was confirmed to fail and name that file, the
+      # literal was removed, and the check was confirmed to pass again cleanly.
+      - name: Check for Resend API references outside ResendEmailService
+        run: bash scripts/ci/check-no-resend-outside-service.sh
+
       - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:

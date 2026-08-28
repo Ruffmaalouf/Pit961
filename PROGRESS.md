@@ -664,3 +664,107 @@ re-executed rather than trusting QA's sign-off) -- have formally signed off.
 **Next:** Commit WP-7 to git; update tracking docs (done, this entry); proceed
 immediately into WP-6 (Email / Resend) per the Owner's standing instruction, no
 further Owner permission required.
+
+---
+
+## WP-6: Email / Resend Integration (2026-08-28)
+
+**Owner order:** proceed immediately into WP-6 after WP-7's acceptance, no further
+Owner permission required. First, a small process/label reconciliation: `13_phase1_execution_plan.md` and `IMPLEMENTATION_MAP.md` named "Backend Engineer"
+alone as WP-6's responsible specialist, predating the roster's dedicated Integration
+Engineer specialization for third-party service integrations -- corrected to
+Integration Engineer (owns the `ResendEmailService`/Resend SDK boundary) + Backend
+Engineer (collaborates on `AuthService`/password-reset wiring), scope unchanged,
+committed separately (`0227e44`) before WP-6 implementation began. Device executor:
+Company Dispatcher, per the Device Execution Protocol.
+
+**Brief:** Integration Engineer produced the WP-6 implementation brief against the
+current repo, resolving several concrete design questions the Owner's order left to
+specialist judgment: (1) whether to add `IEmailService.SendTransactionalAsync` now
+with no current caller -- decided YES, citing `11_engineering_handoff.md` §11A and
+`DECISIONS.md` as already specifying this exact two-method shape as approved Phase 1
+infrastructure, not scope creep (independently re-confirmed by both QA Lead and
+Security Reviewer, who each read §11A themselves rather than trusting the citation);
+(2) a hand-rolled typed-HttpClient POST against Resend's REST API instead of a
+third-party Resend SDK NuGet package, since none exists in the repo's dependency
+graph and a hand-rolled call makes the "Resend SDK usage cannot leak outside
+ResendEmailService" acceptance criterion mechanically true (no SDK type exists to
+leak); (3) `ResendOptions.ApiKey` secrets-handling modeled on `JwtOptions`' existing
+pattern (`.Validate()` + `.ValidateOnStart()`, fixed obviously-fake test-only value in
+appsettings.Testing.json) rather than an environment-conditional validation bypass,
+chosen by the Dispatcher during implementation as the simpler, more established-
+precedent option once grounded against the real `JwtOptions.cs`/`Program.cs` code.
+
+**Implementation.** `IEmailService` grew `SendTransactionalAsync` alongside the
+existing `SendPasswordResetAsync`. `ResendEmailService` (new, `GarageOS.Infrastructure/
+Email/`) is the ONLY class in the codebase permitted to reference the Resend API
+(Decision #8) -- it builds a `ResendSendEmailRequest` JSON payload, sets the
+`Authorization: Bearer` header per-request (not on the shared `HttpClient`, see the
+Security Reviewer finding below), POSTs to `https://api.resend.com/emails` via a typed
+`HttpClient` (`AddHttpClient<IEmailService, ResendEmailService>`, replacing the WP-4
+`NoOpEmailService` registration -- that class is kept, unregistered, as a documented
+fallback/swap-proof, and also gained `SendTransactionalAsync`), and propagates
+failures rather than swallowing them (the sole Phase 1 caller,
+`PasswordResetRequestBackgroundService`, already catches and logs per-item exceptions
+as a deliberate at-most-once tradeoff -- swallowing in both places would make failures
+silently invisible). `AuthService.ProcessForgotPasswordRequestAsync` is unchanged
+except for which `IEmailService` implementation DI resolves. `ResendOptions`
+(ApiKey, FromAddress) added, mirroring `JwtOptions`' secrets-handling convention
+exactly. `CapturingEmailService` (integration test double) updated for the grown
+interface; `ForgotPasswordTests` gained one new assertion proving the password-reset
+template (not the generic transactional one) is what actually gets used.
+
+**Resend-SDK-isolation CI regression check.** `scripts/ci/check-no-resend-outside-
+service.sh` mirrors WP-7's `check-no-legacy-brand.sh` pattern: an unrestricted grep
+(by file extension) for the literal Resend API host across backend/frontend,
+allow-listing only `ResendEmailService.cs`, wired into `.github/workflows/ci.yml` as a
+blocking step. The required negative-test proof (introduce a violation, confirm the
+check fails, remove it, confirm it passes again) was run by the Dispatcher before the
+gates, then independently re-run from scratch by both QA Lead and Security Reviewer
+during their own gate reviews -- neither trusted the workflow comment's claim alone.
+
+**10 new tests, all passing, zero regressions:** 6 `Email/ResendEmailServiceTests`
+(correct recipient/subject/body; `BrandingOptions.EmailFromName` sourcing; `SendTransactionalAsync` uses the caller's own subject/body, not the password-reset
+template; failure propagation as `HttpRequestException`, not swallowed; two
+log-hygiene tests injecting a real-looking secret and a real reset-link/token and
+asserting neither ever appears in any captured log line, on both the success and
+failure paths) + 4 `ResendOptionsBindingTests` (binding correctness, no embedded
+default key, bidirectional isolation from Jwt:*/Branding:*) -- **180/180 total**
+(170 prior + 10 new), run against real PostgreSQL 15.19, no Docker/Testcontainers/
+InMemory substitute.
+
+**QA Lead gate: PASS.** Did not just read the code: built and ran both test suites
+itself (47/47 unit, 133/133 integration), independently reproduced the CI check's
+pass-fail-pass negative-test cycle in a scratch copy, confirmed
+`ProcessForgotPasswordRequestAsync`'s anti-enumeration logic is byte-for-byte
+unchanged, confirmed `ConfigController` (WP-7) remains structurally incapable of
+reaching `ResendOptions`, confirmed KI-10 (email case-sensitivity) untouched and no
+new migration was introduced, and independently formed its own judgment on the
+`SendTransactionalAsync` scope question by reading §11A itself. One MINOR
+documentation-parity note (the isolation script's header comment didn't yet disclose
+the same split-literal-detection limitation `check-no-legacy-brand.sh` already
+documents) fixed opportunistically before Security review.
+
+**Security Reviewer gate: PASS.** Traced `ResendEmailService`'s actual HTTP call and
+logging code line-by-line rather than trusting doc comments or QA's sign-off;
+independently re-ran the CI check's negative-test proof a third time; confirmed no
+SSRF/injection risk (recipient/subject/body only ever populate the JSON payload, never
+the URL), a hardcoded HTTPS base address with no config-driven downgrade path, an
+explicit 10-second request timeout so a hung call can't stall the background consumer,
+and that `EnsureSuccessStatusCode()`'s default exception message can't leak a Resend
+response body since the response content is never read. One LOW/informational finding:
+the `Authorization` header was being set on the injected `HttpClient`'s shared
+`DefaultRequestHeaders` rather than per-`HttpRequestMessage` -- safe under every call
+pattern that exists today (a fresh typed client per resolution, one email per
+scoped background-queue item) but a latent race if a future caller ever held a
+long-lived/singleton reference to `IEmailService`. Fixed opportunistically (the
+request is now built explicitly with its own `Authorization` header) and re-verified
+-- 180/180 still passing, both CI checks still passing.
+
+**WP-6 status: ACCEPTED.** Both required specialist gates -- QA Lead (PASS) and
+Security Reviewer (PASS, one LOW finding fixed opportunistically) -- have formally
+signed off.
+
+**Next:** Commit WP-6 to git; update tracking docs (done, this entry). With WP-6 and
+WP-7 both accepted, report to the Owner per the standing ~28-section report
+requirement.

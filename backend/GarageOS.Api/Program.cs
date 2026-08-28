@@ -101,6 +101,21 @@ builder.Services
     .BindConfiguration(BrandingOptions.SectionName)
     .ValidateOnStart();
 
+// --- Email / Resend (WP-6) ---------------------------------------------------
+// ResendOptions: ApiKey is a real secret, mandatory ValidateOnStart -- same pattern as
+// Jwt:SigningKey above, never a silent empty-key fallback. appsettings.Testing.json
+// carries a fixed, obviously-fake, non-secret test-only ApiKey (mirroring JwtOptions'
+// SigningKey convention exactly) so this validation passes in the Testing host too,
+// without needing any environment-conditional validation logic -- ResendEmailService is
+// never actually resolved/called there regardless (see the IEmailService registration
+// below), this is purely to satisfy ValidateOnStart() at boot. See ResendOptions.cs
+// remarks for the full per-environment provisioning story.
+builder.Services
+    .AddOptions<ResendOptions>()
+    .BindConfiguration(ResendOptions.SectionName)
+    .Validate(o => !string.IsNullOrWhiteSpace(o.ApiKey), "Resend:ApiKey is required.")
+    .ValidateOnStart();
+
 // JwtOptions is needed synchronously here (before the DI container is built) to
 // configure AddJwtBearer's TokenValidationParameters -- read directly from
 // IConfiguration rather than through IOptions<JwtOptions>, since the signing key never
@@ -284,9 +299,22 @@ builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 builder.Services.AddScoped<AuthService>();
 
-// IEmailService is architecturally WP-6's (see IEmailService.cs governance comment) --
-// NoOpEmailService is an explicitly-temporary stub until WP-6 lands (WP-4 brief §14).
-builder.Services.AddScoped<IEmailService, NoOpEmailService>();
+// IEmailService is architecturally WP-6's (see IEmailService.cs governance comment).
+// ResendEmailService is the ONLY class permitted to reference the Resend SDK/API
+// (Decision #8) -- registered as a typed HttpClient (IHttpClientFactory-managed handler
+// lifetime/pooling), not a hand-constructed HttpClient. The base address is
+// ResendEmailService's own public const, kept in that one file so the literal Resend host
+// is defined in exactly one place. The "Testing" host
+// (GarageOS.Tests.Integration/IntegrationTestFixture.ConfigureWebHost) removes this
+// registration and substitutes CapturingEmailService before the host finishes building --
+// ResendEmailService is never actually constructed or called in CI/integration tests.
+// NoOpEmailService (WP-4 brief §14's original stub) remains available, unregistered, as a
+// manual local-dev fallback -- see its own doc comment.
+builder.Services.AddHttpClient<IEmailService, ResendEmailService>(client =>
+{
+    client.BaseAddress = new Uri(ResendEmailService.ResendApiBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 // Bounded in-process queue + background consumer implementing the anti-enumeration
 // mechanism (WP-4 brief §13). Singleton queue (wraps one Channel for the process

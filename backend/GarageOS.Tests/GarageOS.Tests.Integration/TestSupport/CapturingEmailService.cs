@@ -14,11 +14,29 @@ public sealed class CapturingEmailService : IEmailService
 {
     public string? LastToEmail { get; private set; }
     public string? LastResetLink { get; private set; }
+    public string? LastSubject { get; private set; }
+    public string? LastHtmlBody { get; private set; }
+
+    // Duplicates ResendEmailService's private PasswordResetSubject constant -- a small,
+    // deliberate duplication (this test double intentionally does not reach into
+    // production internals via InternalsVisibleTo for one string). If ResendEmailService's
+    // subject line ever changes, this line and the WP-6 integration test asserting it
+    // (ForgotPasswordTests) must both be updated together.
+    private const string PasswordResetSubject = "Reset your password";
 
     public Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken ct = default)
     {
         LastToEmail = toEmail;
         LastResetLink = resetLink;
+        LastSubject = PasswordResetSubject;
+        return Task.CompletedTask;
+    }
+
+    public Task SendTransactionalAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
+    {
+        LastToEmail = toEmail;
+        LastSubject = subject;
+        LastHtmlBody = htmlBody;
         return Task.CompletedTask;
     }
 
@@ -26,6 +44,8 @@ public sealed class CapturingEmailService : IEmailService
     {
         LastToEmail = null;
         LastResetLink = null;
+        LastSubject = null;
+        LastHtmlBody = null;
     }
 
     /// <summary>Polls for the background consumer to finish processing a queued

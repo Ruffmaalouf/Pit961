@@ -33,6 +33,9 @@ public class ForgotPasswordTests(IntegrationTestFixture fixture)
         Assert.True(sent, "Background consumer did not process the queued forgot-password request in time.");
         Assert.Equal(user.Email, fixture.CapturedEmails.LastToEmail);
         Assert.Contains("token=", fixture.CapturedEmails.LastResetLink);
+        // WP-6: proves the email actually flows through IEmailService.SendPasswordResetAsync
+        // (the password-reset template path), not SendTransactionalAsync (the generic one).
+        Assert.Equal("Reset your password", fixture.CapturedEmails.LastSubject);
     }
 
     [Fact]
