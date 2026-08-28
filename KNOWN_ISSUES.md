@@ -44,14 +44,43 @@ see `PROGRESS.md`'s WP-3 entry). It provisions PostgreSQL 15 via GitHub
 Actions' native `services:` container (not a substitute — this is real
 Postgres 15, matching the plan's WP-2/WP-9 CI design), applies both
 DbContexts' migrations, and runs the full `GarageOS.Tests.Unit` +
-`GarageOS.Tests.Integration` suite on every push/PR to `main`. It has not
-yet actually been exercised by a push/PR (device-side `dotnet test` remains
-the verified source of truth so far). **WP-9 is still not gating-complete**:
-it retains its own remaining approved scope — the Resend-SDK-leakage grep
-check, the "Rashid"-placeholder grep check, wiring in the frontend build once
-WP-8 exists, and the plan's stated "not gating-complete until WP-4/WP-5 suites
-exist" condition. WP-9's job going forward is to extend this skeleton, not to
-build CI from scratch.
+`GarageOS.Tests.Integration` suite on every push/PR to `main`.
+
+*(Historical note, as originally written 2026-08-27, WP-3: at that point
+WP-9 still needed the WP-4/WP-5 suites to exist, the Resend-SDK-isolation
+grep check, and the "Rashid"-placeholder grep check. All three have since
+landed — see the 2026-08-28 update immediately below.)*
+
+**WP-9 status update (2026-08-28, after WP-4/WP-5/WP-6/WP-7):**
+
+DONE:
+- WP-4/WP-5 test suites exist and pass (both formally ACCEPTED).
+- Resend-SDK-isolation CI regression check implemented
+  (`scripts/ci/check-no-resend-outside-service.sh`) and wired into
+  `.github/workflows/ci.yml` as a blocking step, with its negative-test
+  proof run and independently re-run by both WP-6's QA Lead and Security
+  Reviewer gates.
+- "Rashid"-placeholder CI regression check implemented
+  (`scripts/ci/check-no-legacy-brand.sh`) and wired into
+  `.github/workflows/ci.yml` as a blocking step, with its negative-test
+  proof run and independently re-run by both WP-7's QA Lead and Security
+  Reviewer gates.
+
+STILL OPEN (WP-9 is NOT gating-complete):
+- WP-8 frontend build/tests, once the frontend exists.
+- Integrating the frontend suite into `ci.yml` alongside the backend suite.
+- The pipeline has still never actually run in anger — no push/PR has
+  triggered it yet; device-side `dotnet test`/script execution remains the
+  verified source of truth so far.
+- Verifying the CI gate's negative behavior end-to-end in the actual CI
+  environment (not just proven locally on-device).
+- A final QA/Security/Architect review of the CI configuration itself, not
+  just of the WPs it runs.
+- Deterministic resolution of the intermittent JWT security test
+  (`GarageOS.Tests.Integration.Auth.JwtValidationTests.Me_TamperedSignature_ReturnsUnauthorized`) — see KI-18 below for its
+  investigation status.
+
+WP-9's job going forward is to extend this skeleton and close the remaining items above, not to build CI from scratch.
 **Note for real developer machines:** a developer with normal admin/root on
 their own machine should simply install PostgreSQL 15+ the standard way (the
 official installer, or `apt`/`brew` with the PGDG repo added) — the user-space
@@ -391,3 +420,39 @@ content masked (closing the same class of bypass even when nested). Doubled brac
 mistaken for a hole. Re-verified: full solution build clean, 30/30 unit tests pass, and
 QA Lead's own PoC shape re-run to confirm it is now correctly flagged.
 **Owner input needed?** No.
+
+### KI-18 — Intermittent failure: `JwtValidationTests.Me_TamperedSignature_ReturnsUnauthorized` (MEDIUM, OPEN — investigation in progress)
+
+**Severity:** MEDIUM. A security-relevant assertion (a tampered JWT signature must be
+rejected) that is not deterministically observed passing/failing under full-batch test
+load is a CI-trust problem even though every reproduction to date shows the underlying
+security behavior is intact when run in isolation -- not yet CRITICAL/BLOCKER because no
+run has shown the assertion's *logic* to be wrong, only its *reliability* under
+concurrent/full-suite conditions, but this must not be normalized as acceptable CI
+behavior (explicit Owner instruction) and blocks WP-9 acceptance until resolved.
+**Affects:** WP-4 (`GarageOS.Tests.Integration/Auth/JwtValidationTests.cs`), WP-9
+(gating-completeness).
+**Description:** `Me_TamperedSignature_ReturnsUnauthorized` fails intermittently when the
+full `GarageOS.Tests.Integration` suite runs together (observed during WP-5's own
+"121/121 re-confirmed" pass and noted again during WP-6/WP-7 full-suite runs), but passes
+100% reliably when run in isolation or in a narrow filtered run. Root cause not yet
+determined -- candidate areas flagged by the Owner for investigation: shared
+`WebApplicationFactory`/`IntegrationTestFixture` state, mutable `JwtOptions`/config
+resolution, a shared `HttpClient`'s auth headers, a test-database reset race, token
+factory (`TestJwtTokenFactory`) state, clock/timing assumptions in token validation, any
+other static/shared mutable state, or genuine parallel-test interference within the
+`[Collection("Integration")]` grouping.
+**Status: OPEN, INVESTIGATION IN PROGRESS (assigned 2026-08-28).** Primary: QA Automation
+Engineer. Collaborator: Backend Engineer. Security Reviewer required if the root cause
+touches JWT validation/authentication logic itself. Explicit constraints on the fix (Owner
+order): do not just increase retries and call it fixed; do not quarantine/skip the test;
+do not remove the assertion; do not weaken JWT validation; do not serialize the entire
+suite to hide a race unless that is proven to be the correct test-isolation architecture
+(not merely the easiest workaround). A fix is accepted only once the root cause is
+explained, a regression test/architecture correction exists where appropriate, repeated
+full-suite runs are stable, and Security Reviewer has signed off if auth/security behavior
+changed. This investigation runs in parallel with WP-8 and must not block normal frontend
+implementation. Must be resolved before WP-9 is accepted.
+**Owner input needed?** No, unless the investigation surfaces a genuine backend-contract
+change with security implications, in which case route through Backend Engineer +
+Security Reviewer + Technical Architect first, per standing instruction.
