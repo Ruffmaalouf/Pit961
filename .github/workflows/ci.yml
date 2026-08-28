@@ -54,6 +54,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # WP-7 brief §5 / 13_phase1_execution_plan.md WP-9 acceptance criterion
+      # (Owner-mandated, blocking, CI-wired -- not a one-off manual grep). Fails the
+      # build the moment a literal "Rashid" placeholder-brand reference reappears in
+      # backend/ or frontend/. See the script's own header comment for full
+      # scope/rationale. The required negative-test proof was run manually against this
+      # exact script before this step was wired in: a "Rashid" literal was introduced in
+      # one file of each covered extension the check scans (.cs, .txt, .yaml, .svg,
+      # .resx), the check was confirmed to fail and list every one of them, the files
+      # were removed, and the check was confirmed to pass again cleanly. WP-7's tracking
+      # entry (PROGRESS.md) records this once WP-7 clears its QA/Security gates, per
+      # standing project policy of only marking a work package's tracking docs complete
+      # after both gates pass.
+      - name: Check for placeholder brand name ("Rashid")
+        run: bash scripts/ci/check-no-legacy-brand.sh
+
       - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:

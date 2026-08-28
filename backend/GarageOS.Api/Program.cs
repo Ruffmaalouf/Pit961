@@ -89,6 +89,18 @@ builder.Services
     .BindConfiguration(PasswordResetOptions.SectionName)
     .ValidateOnStart();
 
+// --- Branding / Configuration Layer (WP-7) ----------------------------------
+// BrandingOptions: no bridge-to-plain-object registration needed (unlike
+// JwtOptions/PasswordResetOptions above) -- nothing in the framework-free
+// GarageOS.Application layer currently needs BrandingOptions directly.
+// GarageOS.Infrastructure's ResendEmailService (WP-6) and GarageOS.Api's
+// ConfigController both sit above Application and inject IOptions<BrandingOptions>
+// directly. Never derived from/coupled to JwtOptions in either direction.
+builder.Services
+    .AddOptions<BrandingOptions>()
+    .BindConfiguration(BrandingOptions.SectionName)
+    .ValidateOnStart();
+
 // JwtOptions is needed synchronously here (before the DI container is built) to
 // configure AddJwtBearer's TokenValidationParameters -- read directly from
 // IConfiguration rather than through IOptions<JwtOptions>, since the signing key never

@@ -559,3 +559,108 @@ of the fix.
 
 **Next:** Commit WP-5 to git; update tracking docs (done, this entry); WP-6 (Email /
 Resend) and WP-7 (Branding Configuration) are both unblocked and ready to start.
+
+---
+
+## WP-7: Branding / Configuration Layer (2026-08-28)
+
+**Owner order:** "OWNER / CONTROL ROOM ORDER — CONTINUE PHASE 1" formally accepted
+WP-4 and WP-5, then directed WP-7 before WP-6 (WP-6 consumes
+`Branding:EmailFromName`, and WP-8 later consumes the same branding config, so the
+branding layer needed to exist first). Specialist owner: Technical Architect (brief),
+required collaborator: Backend Engineer, device executor: Company Dispatcher (the
+Device Execution Protocol was followed throughout -- specialists have no device
+access; the Dispatcher performed every device-bound file edit and test run directly).
+
+**Brief:** Technical Architect confirmed/produced the WP-7 brief against the current
+repo (directory-name conventions, `Contracts/` single-file-per-feature-area pattern,
+anonymous-endpoint convention, test-project split), verdict **ACCEPT**.
+
+**Implementation.** `BrandingOptions` (ProductDisplayName, EmailFromName, LogoUrl,
+SupportEmail) added as a plain `IOptions<T>`-bound configuration class, no
+`.Validate(...)` clause (matching `DemoOptions`'s precedent -- none of the four fields
+is secret/startup-fatal), registered in `Program.cs` completely independently of the
+JWT bearer pipeline. `ConfigController` (`[AllowAnonymous] GET /api/config/branding`)
+exposes the four fields through a hand-mapped closed DTO (`BrandingConfigResponse`) --
+never a direct serialization of `BrandingOptions` itself, and its sole constructor
+dependency is `IOptions<BrandingOptions>`, reflection-proven by
+`ConfigControllerDependencySurfaceTests` to be structurally incapable of reaching
+`IConfiguration`, `JwtOptions`, or any connection string. `Branding` sections added to
+all three appsettings files with placeholder values (e.g. `"Garage Management
+Platform"` -- the final customer-facing brand remains undecided per DECISIONS.md #6).
+No new migration -- pure configuration/options layer, no schema change.
+
+**Strict JWT/Branding separation -- the Owner's highest-priority requirement --
+proven at runtime, not just asserted.** `BrandingJwtDecouplingTests` boots two real
+hosts from the exact same compiled `Program` with identical `Jwt:*` configuration but
+different `Branding:ProductDisplayName` values, logs in via the real
+`/api/v1/auth/login` path on both, decodes both issued JWTs, and asserts the `iss`/
+`aud` claims are byte-identical across hosts and still equal the fixed expected
+`Jwt:Issuer`/`Jwt:Audience` test values -- not merely "equal to each other by
+coincidence," which a shared-broken-default bug could still satisfy.
+`BrandingOptionsBindingTests` adds the binding-layer half of the same proof in both
+directions (Branding-only config still binds `JwtOptions` to defaults, and
+Jwt-only config still binds `BrandingOptions` to defaults).
+
+**Placeholder-brand ("Rashid") CI regression check.** `scripts/ci/check-no-legacy-
+brand.sh` implements the Owner-approved acceptance criterion from
+`13_phase1_execution_plan.md` (an unrestricted `grep -rlni "rashid"` over
+backend/frontend, excluding only node_modules/bin/obj/dist/.git/.review-snapshots),
+wired into `.github/workflows/ci.yml` as an unconditional blocking step on every
+push/PR. One genuine pre-existing hit was found and fixed along the way: a doc
+comment in `GarageInsertBoundaryTests.cs` (predating WP-7) discussed the future
+"Rashid"-placeholder check by name in prose -- a legitimate meta-reference, not a
+real violation, but it tripped the literal grep -- reworded to avoid the word
+entirely rather than special-casing the check itself. The required negative-test
+proof (introduce a violation, confirm the check fails, remove it, confirm it passes
+again) was run twice this session: once against an initial version of the script that
+restricted matching to a fixed list of source-file extensions, and again -- after QA
+Lead's gate review correctly rejected that restriction as an unauthorized narrowing of
+the approved plan -- against the corrected, fully unrestricted version, across five
+file types (.cs/.txt/.yaml/.svg/.resx), each time confirming fail-and-list-every-file
+then remove-and-pass-cleanly.
+
+**19 new tests, all passing, zero regressions:** 7 `GarageOS.Tests.Unit`
+(`BrandingOptionsBindingTests` x4, `Architecture/ConfigControllerDependencySurfaceTests`
+x3) + 12 `GarageOS.Tests.Integration` (`BrandingConfigEndpointTests` x10 [2 facts + an
+8-case theory proving no secret field name ever appears in the response],
+`BrandingConfigPropagationTests` x1 [dual-boot proof that ProductDisplayName/
+EmailFromName propagate from configuration alone, same compiled binary, no recompile],
+`BrandingJwtDecouplingTests` x1) -- **170/170 total** (151 prior + 19 new), run against
+real PostgreSQL 15.19, no Docker/Testcontainers/InMemory substitute.
+
+**QA Lead gate: PASS (two rounds).** Round 1 found two genuine CRITICAL findings via
+independent execution, not code reading alone: (1) the "Rashid" check's file-extension
+allow-list was an unauthorized narrowing of the Owner-approved unrestricted command --
+QA Lead built a throwaway fixture and proved by running the actual script that .txt/
+.yaml/.svg/.resx violations were silently missed; (2) the CI step's comment cited a
+PROGRESS.md negative-test record that did not exist at the time. Both fixed (extension
+allow-list removed entirely; the comment rewritten to be self-contained and to
+correctly state that tracking-doc updates are deferred until both gates pass, per
+standing project policy) and independently re-verified in round 2 by QA Lead executing
+the corrected script itself against a refreshed snapshot -- not by trusting the fix
+description. One non-blocking MINOR noted and fixed opportunistically (the script's
+own comment didn't disclose the `--exclude-dir=dist` addition alongside `.git`/
+`.review-snapshots`).
+
+**Security Reviewer gate: PASS.** Independently re-verified rather than rubber-
+stamping QA's sign-off: re-read `BrandingJwtDecouplingTests`' logic line-by-line and
+confirmed it proves genuine equality-to-a-fixed-expected-value, not just
+equality-between-hosts; independently re-executed the negative-test proof against
+synthetic fixtures across all five previously-gapped extensions plus a case-
+sensitivity and a `node_modules`-exclusion check; confirmed `[AllowAnonymous]` scope
+is narrow (only two controllers exist, no shared base class bleed risk); confirmed no
+SMS/WhatsApp/Twilio code exists anywhere in the backend; confirmed `IEmailService`/
+`NoOpEmailService` are untouched by branding. One LOW/advisory note carried forward to
+WP-8, not blocking WP-7: validate `LogoUrl`/`SupportEmail` scheme/encoding before ever
+rendering them client-side (e.g. block `javascript:`/`data:` schemes, encode a
+`mailto:` link) -- no rendering surface exists yet to exploit, since `frontend/` is
+still empty pending WP-8.
+
+**WP-7 status: ACCEPTED.** Both required specialist gates -- QA Lead (PASS, after two
+CRITICAL findings fixed and re-verified) and Security Reviewer (PASS, independently
+re-executed rather than trusting QA's sign-off) -- have formally signed off.
+
+**Next:** Commit WP-7 to git; update tracking docs (done, this entry); proceed
+immediately into WP-6 (Email / Resend) per the Owner's standing instruction, no
+further Owner permission required.

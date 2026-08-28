@@ -6,8 +6,8 @@ using System.Text.RegularExpressions;
 /// Source-scanning architecture test (WP-3B brief §6) — proves no production code path
 /// other than AccountProvisioningService can insert a row into `garages`. This is a
 /// call-site text pattern, not something EF's runtime model metadata can see, so this is
-/// a regex source scan rather than IL reflection (same technique WP-9 uses for its
-/// Resend-SDK-leakage and "Rashid"-placeholder checks).
+/// a regex source scan rather than IL reflection (same technique WP-6/WP-7 use for their
+/// Resend-SDK-isolation and placeholder-brand-name checks).
 ///
 /// Scope is production code only (Api/Application/Domain/Infrastructure) — deliberately
 /// excludes GarageOS.Tests.* because TwoTenantFixture.cs already does a direct
