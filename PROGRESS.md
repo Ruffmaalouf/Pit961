@@ -952,3 +952,45 @@ issue rather than rubber-stamping.
 
 **Next:** Commit WP-8 tracking-doc updates (this entry); report to the
 Owner per the standing ~35-section WP-8 report requirement.
+
+---
+
+## WP-9 — CI/CD Pipeline: real GitHub Actions execution (2026-09-02)
+
+Closed the WP-9 primary gap: `e2e-frontend` previously only installed Playwright and ran
+it against nothing (an explicit TODO marked this as open). It now orchestrates a real
+PostgreSQL 15 GitHub Actions service container (`pit961_e2e`), both DbContext migrations,
+the real ASP.NET Core backend (`dotnet run`, `Development` environment so
+`DevelopmentSeeder` fires), and the real Vite dev server -- each gated on genuine
+HTTP health-check polling (backend's own `/health`, a root probe for Vite) with a
+fail-fast dead-process check, not a fixed sleep -- then runs the real, unmocked WP-8
+Playwright suite. Commits `569408f`, `d050ec0` (DevOps-flagged fail-fast fix),
+`a9833fd`/KI-19 (Security-flagged Playwright trace-capture fix).
+
+All four WP-9 specialist gates (DevOps Engineer, Technical Architect, QA Lead, Security
+Reviewer) passed against the real committed code, after a process error was caught and
+fixed mid-review: the cloud-side unified checkout used for specialist review had gone
+stale (pre-dated the commit), so three specialists independently and correctly refused
+to sign off on a commit they couldn't verify existed. Re-synced from the real device repo
+and all four re-reviewed cleanly. Technical Architect's one initial required fix
+(decouple the dev-seed from `ASPNETCORE_ENVIRONMENT=Development`) was withdrawn after
+evidence that `Testing` has no CORS config at all (would break the real-browser login
+flow) and that "seed never fires under Testing" is an existing WP-3-approved contract,
+not something WP-9 should reopen.
+
+**Real GitHub remote created** (`https://github.com/Ruffmaalouf/Pit961`, Owner-provided
+PAT, per the Owner's explicit WP-9 order instruction not to invent one). Real CI proof,
+not local simulation:
+- **Happy path:** first run failed exactly as expected (backend correctly failed closed
+  on a not-yet-provisioned `CI_E2E_JWT_SIGNING_KEY` secret; the new fail-fast check
+  caught it in ~2s instead of the full 60s timeout). Re-ran clean after setting the
+  secret: all three jobs green, e2e backend healthy in 5s, frontend in 2s, Playwright
+  4/4 in 3.9s. Run: https://github.com/Ruffmaalouf/Pit961/actions/runs/33629806752
+- **Negative-gate proof**, three temporary branches/PRs, none merged to `main`: (1) a
+  deliberate failing unit test failed CI at the "Test" step; (2) a deliberate "Rashid"
+  reintroduction failed CI at the brand-name grep step; (3) a deliberate Resend-API
+  reference outside `ResendEmailService.cs` failed CI at the Resend-isolation grep step.
+  All three confirmed to fail at exactly the intended step, then PRs closed and branches
+  deleted (local and remote) -- `main` confirmed clean afterward.
+- **3-consecutive-clean-run stability**: in progress, tracked in this same push.
+
