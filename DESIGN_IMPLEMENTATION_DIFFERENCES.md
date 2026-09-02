@@ -72,6 +72,14 @@ Required by `11_engineering_handoff.md` §2 (Critical Engineering Rule): any una
 - **Reason:** Prototype is canonical per item 1; this entry closes the loop with the specific corrected values needed for the WP-8 engineering token file, which the general item-1 note didn't enumerate.
 - **Impact:** No functional/business-logic impact. Frontend Tailwind/shadcn theme config must use the values above, not the doc's remaining stale numbers.
 
+## 8. Rail product-display-name label under the brand mark — freshly designed, not present in `prototype.html`
+
+- **Approved design behavior:** `prototype.html`'s rail (see item 7) shows the brand mark followed directly by the 8 nav items; it has no tenant/product-name label anywhere in the rail, only the fixed `RASHID` username badge at the bottom of the page (a different element, not truncated, not part of the rail).
+- **Implementation limitation:** WP-8's authenticated shell renders the runtime `productDisplayName` (from `GET /api/config/branding`) directly under the brand mark in the 76px rail (`AppShellLayout.tsx`). Real tenant/garage names are arbitrary-length business names (e.g. "Rashid's Auto & Truck Service Center") that will not fit a 76px-wide rail, and no prototype precedent exists for this element at all.
+- **Proposed change:** The label is truncated with `max-w-[68px] truncate` (`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`) and carries a native `title={productDisplayName}` attribute, so hovering reveals the full untruncated name as a browser tooltip. This was flagged in-code to Design Lead at implementation time (see the comment directly above the element in `AppShellLayout.tsx`) rather than treated as a silent side effect of reusing the nav-item label CSS.
+- **Reason:** WP-8 needs the real branding endpoint wired end-to-end, including a visible product name in the authenticated shell; no approved design exists for this specific element, so this is new design work using already-ratified rail tokens (7.5px mono uppercase, `text-rail-label` color) rather than a reconciliation against the prototype.
+- **Impact:** No functional/business-logic impact. Confirmed via Design Lead re-review (WP-8 sign-off round) that the truncation-plus-tooltip treatment is an acceptable, deliberate answer to the "no approved treatment for long names" gap noted in the code comment — not an incidental bug. Any future dedicated design pass for this element (e.g. a two-line label, a settings-page display name, or an abbreviation scheme) should update this entry.
+
 ---
 
 *Log format for future entries:*
