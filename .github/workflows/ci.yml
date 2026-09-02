@@ -288,10 +288,17 @@ jobs:
 
       - name: Wait for backend readiness
         run: |
+          BACKEND_PID="$(cat "$GITHUB_WORKSPACE/backend.pid")"
           for i in $(seq 1 60); do
             if curl -sf http://localhost:5289/health > /dev/null; then
               echo "Backend healthy after ${i}s"
               exit 0
+            fi
+            if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+              echo "::error::Backend process exited before becoming healthy"
+              echo "--- backend.log ---"
+              cat "$GITHUB_WORKSPACE/backend.log" || true
+              exit 1
             fi
             sleep 1
           done
@@ -308,10 +315,17 @@ jobs:
 
       - name: Wait for frontend readiness
         run: |
+          FRONTEND_PID="$(cat "$GITHUB_WORKSPACE/frontend.pid")"
           for i in $(seq 1 60); do
             if curl -sf http://localhost:5173/ > /dev/null; then
               echo "Frontend healthy after ${i}s"
               exit 0
+            fi
+            if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+              echo "::error::Frontend process exited before becoming healthy"
+              echo "--- frontend.log ---"
+              cat "$GITHUB_WORKSPACE/frontend.log" || true
+              exit 1
             fi
             sleep 1
           done
