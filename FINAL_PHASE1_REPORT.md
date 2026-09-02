@@ -3,7 +3,7 @@
 Prepared by: Company Dispatcher
 Date: 2026-09-02
 Repository: https://github.com/Ruffmaalouf/Pit961
-Final `main` commit: `96f8c21`
+Final `main` commit: `6a3c26f`
 
 This report closes out the "OWNER / CONTROL ROOM ORDER — COMPLETE WP-9 AND
 CLOSE PHASE 1." It covers (A) WP-9 (Final CI Pipeline) completion with real
@@ -11,6 +11,28 @@ GitHub Actions execution, and (B) the Phase 1 Final Company Gate — a full
 reconciliation of tracking documents against actual code, tests, and CI,
 performed by re-dispatching specialists against the real repository rather
 than trusting document labels.
+
+## RECORD CORRECTION ADDENDUM (2026-09-02, Phase 2 kickoff)
+
+This report was itself committed to `main` as `6a3c26f`, which — being a
+push to `main` — triggered its own CI run. At the moment this report was
+originally written, that run had not yet been observed, so the report's
+"Final `main` commit", CI run list, and stability-run count were captured
+one commit behind their own publication. At the start of the Phase 2
+planning cycle, the Company Dispatcher re-verified `git log`, `git status`,
+`git remote -v`, and the live GitHub Actions run history directly against
+the repository (not against this document) and confirmed:
+
+- Commit `6a3c26f` (this report) is genuinely the final Phase 1 `main` HEAD.
+- CI run `33635985155`, triggered by `6a3c26f`, completed **success** —
+  the 6th consecutive clean `main` CI run, not the 5th.
+- No further commits landed on `main` between `6a3c26f` and the start of
+  Phase 2 planning; the working tree was clean.
+
+This document has been updated in place to reflect that verified state.
+**The Phase 1 verdict (PHASE 1 ACCEPTED) is unchanged** — this is a
+documentation-only correction of the final commit reference and the
+stability-run count, not a re-opening of any Phase 1 gate.
 
 ## WP-9 STATUS
 
@@ -51,6 +73,7 @@ linear history from that merge forward; no history rewrite occurred.
 - Stability run 3: https://github.com/Ruffmaalouf/Pit961/actions/runs/33632393075
 - Stability run 4 (WP-9 acceptance commit `e29be52`): https://github.com/Ruffmaalouf/Pit961/actions/runs/33632860580
 - Stability run 5 (this report's doc fix, commit `96f8c21`): https://github.com/Ruffmaalouf/Pit961/actions/runs/33635017382
+- Stability run 6 (this report's own closeout commit, `6a3c26f`): https://github.com/Ruffmaalouf/Pit961/actions/runs/33635985155
 
 ## CI HAPPY-PATH RESULT
 
@@ -62,7 +85,7 @@ fail-closed startup validation (`Program.cs` throws
 `OptionsValidationException` below 32 bytes) working exactly as designed,
 live, in a real CI environment. The secret was set and the run re-triggered
 via the GitHub API; the rerun passed cleanly end to end. Every run since
-(4 further consecutive runs) has been green on the first attempt.
+(5 further consecutive runs) has been green on the first attempt.
 
 ## CI NEGATIVE TEST RESULT
 
@@ -110,11 +133,13 @@ or the stability runs.
 ## 3-RUN STABILITY RESULT
 
 **EXCEEDED.** The standing order required a minimum of 3 consecutive clean
-full CI runs. **5 consecutive clean runs** are now on record, each tied to
+full CI runs. **6 consecutive clean runs** are now on record, each tied to
 a genuinely independent, needed push (not a bare re-run of the same
 commit): `33629806752` (happy path, after JWT-secret fix), `33631966279`,
-`33632393075`, `33632860580` (WP-9 acceptance doc update), and
-`33635017382` (this report's WP-8 doc fix, commit `96f8c21`).
+`33632393075`, `33632860580` (WP-9 acceptance doc update),
+`33635017382` (WP-8 doc fix, commit `96f8c21`), and `33635985155` (this
+report's own closeout commit, `6a3c26f`) — the final run confirms the
+closeout commit itself was pushed to a green `main`, not merely committed.
 
 ## DEVOPS RESULT
 
@@ -306,6 +331,7 @@ README).
 ## FINAL COMMITS
 
 ```
+6a3c26f docs: add FINAL_PHASE1_REPORT.md — Phase 1 Final Company Gate closeout
 96f8c21 docs: fix stale WP-8 row in IMPLEMENTATION_MAP.md (was NOT STARTED, actually ACCEPTED)
 e29be52 WP-9: mark ACCEPTED in IMPLEMENTATION_MAP.md
 18785a8 WP-9: document real CI execution narrative in PROGRESS.md
@@ -320,7 +346,8 @@ d050ec0 WP-9: fail fast on backend/frontend crash during CI readiness wait
 ```
 
 `HEAD` on `main`, pushed to `https://github.com/Ruffmaalouf/Pit961`, is
-`96f8c21`.
+`6a3c26f` (this report's own closeout commit, which itself triggered CI run
+`33635985155`, green — see 3-RUN STABILITY RESULT).
 
 ## FINAL VERDICT
 
@@ -331,12 +358,14 @@ complete and formally accepted. WP-9's real CI pipeline runs a genuine
 full-stack, PostgreSQL-backed, Playwright-verified end-to-end suite in
 real GitHub Actions, with proven negative-gate enforcement (failing test,
 placeholder-brand, Resend-bypass — each independently proven and cleaned
-up) and 5 consecutive clean stability runs. QA and Security gates are
+up) and 6 consecutive clean stability runs. QA and Security gates are
 clean across the entire phase: zero BLOCKER/CRITICAL QA findings, zero
 CRITICAL/HIGH Security findings. Design and Product/Scope both conform.
 The one concrete defect the gate round surfaced — a stale WP-8 status row
 in `IMPLEMENTATION_MAP.md` — has been fixed, committed (`96f8c21`), pushed
-to `main`, and reconfirmed green in CI.
+to `main`, and reconfirmed green in CI. This report itself was then
+committed as `6a3c26f` and pushed, triggering a 6th consecutive green
+`main` CI run (`33635985155`) — the true final `main` HEAD for Phase 1.
 
 **Recommended next company action:** return to the Owner for the Phase 2
 scoping decision (multi-location ownership, SMS/WhatsApp activation, and
