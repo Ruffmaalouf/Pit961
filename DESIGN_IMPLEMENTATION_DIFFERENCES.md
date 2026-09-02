@@ -44,6 +44,36 @@ Required by `11_engineering_handoff.md` §2 (Critical Engineering Rule): any una
 
 ---
 
+## 5. Login screen — freshly designed, not present in `prototype.html`
+
+- **Approved design behavior:** `prototype.html` (the canonical visual source of truth per item 1) contains no login screen at all — the mockup opens directly into the authenticated "Floor" view with a demo-only role switcher standing in for real auth.
+- **Implementation limitation:** WP-8 acceptance criteria requires a real login page as the first screen users see, wired to `POST /api/v1/auth/login`. No prototype precedent exists to build from.
+- **Proposed change:** Design Lead authored a minimal, token-consistent login screen (centered card on `#0b0d0e`, `#101416` surface, config-driven brand mark and `ProductDisplayName` reusing the sidebar's brand-mark pattern, email + password fields, orange primary button, spinner loading state, red-banner/red-border error states) using only colors, type weights, and radii already ratified from the prototype. Full spec delivered to Frontend Engineer directly (WP-8 design decisions memo, 2026-09-02).
+- **Reason:** WP-8 cannot ship without a login screen; no approved design existed to reconcile against, so this is new design work grounded in existing tokens rather than a reconciliation.
+- **Impact:** One new screen, zero conflicts with the approved token set. Establishes the canonical input-focus-ring, input-error, and button-loading-spinner patterns, none of which existed in the prototype — these are now the reference for those patterns in future screens.
+
+---
+
+## 6. Destructive/danger button variant — deferred, out of WP-8 scope
+
+- **Approved design behavior:** `09_design_system.md` originally specified a `btn-danger` variant (red background, white text).
+- **Implementation limitation:** `prototype.html` contains no destructive button variant anywhere, and no WP-8 screen requires one — the only error-adjacent UI needed for WP-8 (login failure) uses the input-error/banner pattern in item 5, not a button variant.
+- **Proposed change:** Do not implement a `destructive`/`danger` button variant in WP-8. Defer its design until a concrete destructive action (delete, void, irreversible cancel) is scoped, so it can be deliberately differentiated from routine manager-level actions rather than reusing a generic red button.
+- **Reason:** Avoids locking in an unvalidated visual pattern ahead of a real use case, and avoids the risk of a destructive action looking visually identical to a routine one.
+- **Impact:** None for WP-8. Flag to Design Lead before any future screen needs a delete/void/irreversible-cancel action so it gets a dedicated design pass.
+
+---
+
+## 7. Doc/prototype value corrections — `prototype.html` values ratified across remaining color, type, sidebar, focus, and toast specs
+
+- **Approved design behavior:** `09_design_system.md`'s color table, type-weight table, sidebar layout section, input-focus spec, and toast spec still contain several values that don't match the approved `prototype.html` (already established as canonical in item 1), beyond what item 1 covers in general terms.
+- **Implementation limitation:** Building against the doc's literal remaining numbers (e.g. border `#262c30`, single muted-text value `#7c858c`, green/amber/red/purple hexes, 700/800 type weights, blue input focus, 220px labeled sidebar, bottom-right navy 3s toast) would produce a UI that doesn't match the approved prototype.
+- **Proposed change:** Frontend token layer uses the prototype-accurate values instead: border `#1e2225` (page-card) / `#1e2427`-family (item-card), muted-text scale `#8b959b/#7c858c/#6c757a/#5f696e/#4f585d`, green `#59a97a`, amber `#c98a2f`, red `#d1564c`, purple `#8b7bd6`, type weights capped at 400/500/600, input focus border `#e2892f` (not blue), 76px icon-only sidebar rail (not 220px labeled), toast bottom-center/orange/~2.4s (not bottom-right/navy/3s). `09_design_system.md` should be corrected to match.
+- **Reason:** Prototype is canonical per item 1; this entry closes the loop with the specific corrected values needed for the WP-8 engineering token file, which the general item-1 note didn't enumerate.
+- **Impact:** No functional/business-logic impact. Frontend Tailwind/shadcn theme config must use the values above, not the doc's remaining stale numbers.
+
+---
+
 *Log format for future entries:*
 
 ```
