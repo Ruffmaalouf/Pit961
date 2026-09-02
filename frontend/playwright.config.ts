@@ -20,7 +20,10 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173',
-    trace: 'on-first-retry',
+    trace: 'off', // WP-9 Security Reviewer finding (MEDIUM): CI retry traces embed request
+    // headers/bodies (bearer token, seeded dev password) into the always-uploaded
+    // playwright-report artifact. screenshot: 'only-on-failure' below already covers
+    // CI debugging needs without that exposure.
     screenshot: 'only-on-failure',
     video: 'off',
   },
