@@ -82,3 +82,13 @@ desktop.ini
 secrets.json
 *secrets*.json
 .review-snapshots/
+
+# =============================================================================
+# Local device-verification scratch (WP-8) — large binary caches and
+# staging/cleanup leftovers from running the real stack on this device. Never
+# part of the shipped repo.
+# =============================================================================
+.playwright-browsers/
+.apt-extra-libs/
+_to_delete/
+*.timestamp-*.mjs

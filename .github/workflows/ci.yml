@@ -128,3 +128,87 @@ jobs:
       # failure — nothing here swallows that exit code.
       - name: Test (GarageOS.Tests.Unit + GarageOS.Tests.Integration)
         run: dotnet test backend/GarageOS.sln --no-build
+
+
+  build-and-test-frontend:
+    name: Build & test (frontend)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # `npm run build` runs `tsc --noEmit` first, so a type error fails the
+      # build here rather than surfacing at runtime.
+      - name: Build (typecheck + vite build)
+        working-directory: frontend
+        run: npm run build
+
+      - name: Unit/component tests (Vitest + React Testing Library)
+        working-directory: frontend
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  # Playwright e2e. Separate job because it needs the real API running.
+  # `PLAYWRIGHT_BASE_URL` and `VITE_API_BASE_URL` are read by
+  # playwright.config.ts / e2e/fixtures.ts -- neither is hardcoded in the specs.
+  # ---------------------------------------------------------------------------
+  e2e-frontend:
+    name: E2E (frontend, Chromium)
+    runs-on: ubuntu-latest
+    needs: build-and-test-frontend
+
+    env:
+      # Point these at wherever the real API and the served frontend live in CI.
+      VITE_API_BASE_URL: http://localhost:5289
+      PLAYWRIGHT_BASE_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browser (Chromium only)
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      # TODO (devops-engineer): start the real backend (with dev seed data) and
+      # the Vite server before this step. The WP-8 e2e specs log in with the
+      # seeded development account and read GET /api/config/branding live --
+      # there is deliberately no mock server. WP-8's own device verification
+      # confirmed this exact suite passes for real once both processes are up
+      # (see PROGRESS.md / the WP-8 acceptance report) -- what's missing here
+      # is only wiring the backend service + migrations + dev seed into this
+      # job, which is WP-9/devops-engineer's CI-completeness work, not WP-8's.
+      - name: Run Playwright tests
+        working-directory: frontend
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7

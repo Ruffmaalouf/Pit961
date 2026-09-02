@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * PIT961 design tokens — approved dark theme. There is deliberately no light
+ * mode: the product is dark-only, so these are declared once on :root.
+ * Keep in sync with tailwind.config.ts theme.extend.colors.
+ */
+:root {
+  color-scheme: dark;
+
+  --surface-app: #0b0d0e;
+  --surface-card: #101416;
+  --surface-card-item: #131718;
+  --surface-input: #14181a;
+  --surface-header: #0f1213;
+
+  --border-subtle: #1e2225;
+  --border-default: #262c30;
+
+  --text-primary: #e6e9ea;
+  --text-muted-1: #8b959b;
+  --text-muted-2: #7c858c;
+  --text-muted-3: #6c757a;
+
+  --accent-primary: #e2892f;
+  --accent-primary-hover: #f0a458;
+  /* Ink colour for text sitting on the orange accent. */
+  --accent-primary-ink: #160e04;
+  /* hex + alpha-suffix pattern (see --status-*-soft below). */
+  --accent-focus-ring: #e2892f26;
+
+  --status-success: #59a97a;
+  --status-warning: #c98a2f;
+  --status-critical: #d1564c;
+
+  /*
+   * Soft tint pattern used by banners/badges: the status hex with a `1f`
+   * alpha suffix (~12%). Reuse this pattern for any future badge/banner.
+   */
+  --status-critical-soft: #d1564c1f;
+  --status-success-soft: #59a97a1f;
+  --status-warning-soft: #c98a2f1f;
+
+  /* Nav rail inactive icon/label greys from the approved prototype. */
+  --rail-icon-muted: #69737a;
+  --rail-label-muted: #4f585d;
+
+  --brand-mark-gradient: linear-gradient(160deg, #f0a458, #d2761d);
+}
+
+@layer base {
+  * {
+    border-color: var(--border-default);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--surface-app);
+    color: var(--text-primary);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::placeholder {
+    color: var(--text-muted-3);
+  }
+}
