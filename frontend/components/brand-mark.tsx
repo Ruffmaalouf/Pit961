@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { brandInitial } from '@/lib/branding';
 import { safeHttpUrlOrNull } from '@/lib/safe-url';
 import { cn } from '@/lib/utils';
@@ -13,6 +14,10 @@ import { useBrandingStore } from '@/stores/brandingStore';
  *  - `logoUrl` is only used as an <img src> after passing isSafeHttpUrl();
  *    anything else (javascript:, data:, protocol-relative, ...) falls back to
  *    the glyph-only mark with no image at all
+ *  - a URL that IS safe but fails to actually load (404, DNS failure, CORS)
+ *    also falls back to the glyph-only mark on the image's error event,
+ *    rather than leaving a broken-image icon with overflowing alt text.
+ *    Caught via real-device screenshot review during WP-8 verification.
  */
 export function BrandMark({
   size = 44,
@@ -29,6 +34,15 @@ export function BrandMark({
   const productDisplayName = config?.productDisplayName ?? '';
   const initial = brandInitial(productDisplayName);
   const logoUrl = safeHttpUrlOrNull(config?.logoUrl);
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  // Re-arm the fallback whenever the URL itself changes (a new config load
+  // deserves a fresh attempt, not a fallback state stuck from a prior logo).
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [logoUrl]);
+
+  const showLogo = Boolean(logoUrl) && !logoFailed;
 
   return (
     <div
@@ -47,12 +61,13 @@ export function BrandMark({
         letterSpacing: '-0.02em',
       }}
     >
-      {logoUrl ? (
+      {showLogo ? (
         <img
-          src={logoUrl}
+          src={logoUrl ?? undefined}
           alt={productDisplayName ? `${productDisplayName} logo` : ''}
           data-testid="brand-mark-logo"
           className="h-full w-full object-contain"
+          onError={() => setLogoFailed(true)}
         />
       ) : (
         initial

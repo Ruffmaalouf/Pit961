@@ -70,4 +70,24 @@ describe('BrandMark logoUrl safety', () => {
     expect(screen.getByTestId('brand-mark').textContent).toBe('');
     expect(screen.queryByTestId('brand-mark-logo')).toBeNull();
   });
+
+  it('falls back to the initial when a syntactically-safe logoUrl fails to load', () => {
+    // Caught via real-device screenshot review: a URL that passes
+    // isSafeHttpUrl() can still 404/DNS-fail at runtime, which must not leave
+    // a broken-image icon with overflowing alt text on screen.
+    setBranding({
+      productDisplayName: 'Northgate Works',
+      logoUrl: 'https://cdn.example.test/does-not-exist.png',
+    });
+
+    render(<BrandMark />);
+
+    const img = screen.getByTestId('brand-mark-logo');
+    act(() => {
+      img.dispatchEvent(new Event('error'));
+    });
+
+    expect(screen.queryByTestId('brand-mark-logo')).toBeNull();
+    expect(screen.getByTestId('brand-mark')).toHaveTextContent('N');
+  });
 });
