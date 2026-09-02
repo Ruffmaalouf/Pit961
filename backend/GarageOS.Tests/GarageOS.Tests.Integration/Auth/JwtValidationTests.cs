@@ -86,12 +86,44 @@ public class JwtValidationTests(IntegrationTestFixture fixture)
     {
         var token = BuildToken();
         var segments = token.Split('.');
-        var tamperedSignature = FlipLastChar(segments[2]);
+        var tamperedSignature = FlipSignatureBit(segments[2]);
         var tampered = $"{segments[0]}.{segments[1]}.{tamperedSignature}";
 
         var status = await CallMeWithTokenAsync(tampered);
 
         Assert.Equal(HttpStatusCode.Unauthorized, status);
+    }
+
+    [Fact]
+    public void FlipSignatureBit_AlwaysProducesADifferentDecodedByteSequence()
+    {
+        // Regression guard for KI-18: the previous FlipLastChar implementation toggled the
+        // ENCODED STRING's last character ('A'<->'B') rather than the underlying signature
+        // bytes. For a 32-byte HMAC-SHA256 signature, base64url's final character carries
+        // only 4 real bits (the other 2 are zero-padding), and 'A' (000000) / 'B' (000001)
+        // share identical top-4 bits -- so whenever the real signature's last character was
+        // already 'A' (~1/16 of runs, since BuildToken mints a fresh random signature every
+        // call), the "tampered" string decoded back to the IDENTICAL bytes, making the
+        // request cryptographically valid and turning this negative test into an
+        // intermittent false pass. FlipSignatureBit instead flips a full byte after
+        // decoding, which is decode-safe and deterministic on every run. This test iterates
+        // many synthetic signatures (fixed seed, for reproducibility) since a single random
+        // sample would not reliably catch a probabilistic bug.
+        var random = new Random(12345);
+        for (var i = 0; i < 1000; i++)
+        {
+            var original = new byte[32];
+            random.NextBytes(original);
+            var encoded = Base64UrlEncoder.Encode(original);
+
+            var flipped = FlipSignatureBit(encoded);
+            var decoded = Base64UrlEncoder.DecodeBytes(flipped);
+
+            Assert.False(
+                original.AsSpan().SequenceEqual(decoded),
+                $"FlipSignatureBit produced a byte-identical signature for an input " +
+                $"ending in '{encoded[^1]}' (iteration {i}) -- this is the KI-18 regression.");
+        }
     }
 
     [Fact]
@@ -128,11 +160,20 @@ public class JwtValidationTests(IntegrationTestFixture fixture)
         Assert.Equal(HttpStatusCode.Unauthorized, status);
     }
 
-    private static string FlipLastChar(string segment)
+    /// <summary>
+    /// Deterministically invalidates a base64url-encoded JWT signature segment by decoding
+    /// it to raw bytes, flipping every bit of the FIRST byte, then re-encoding -- not by
+    /// toggling a character in the encoded *string* (KI-18's root cause: see the regression
+    /// test above). The first raw byte's encoding is always a full, padding-free base64
+    /// group for any signature this long, so flipping it guarantees the decoded bytes differ
+    /// on every run, deterministically (unlike the old FlipLastChar, which touched the final
+    /// character's zero-padding bits ~1/16 of the time and produced a byte-identical,
+    /// cryptographically-valid "tampered" token).
+    /// </summary>
+    private static string FlipSignatureBit(string signatureSegment)
     {
-        var chars = segment.ToCharArray();
-        var lastIndex = chars.Length - 1;
-        chars[lastIndex] = chars[lastIndex] == 'A' ? 'B' : 'A';
-        return new string(chars);
+        var bytes = Base64UrlEncoder.DecodeBytes(signatureSegment);
+        bytes[0] ^= 0xFF;
+        return Base64UrlEncoder.Encode(bytes);
     }
 }

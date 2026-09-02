@@ -76,9 +76,10 @@ STILL OPEN (WP-9 is NOT gating-complete):
   environment (not just proven locally on-device).
 - A final QA/Security/Architect review of the CI configuration itself, not
   just of the WPs it runs.
-- Deterministic resolution of the intermittent JWT security test
-  (`GarageOS.Tests.Integration.Auth.JwtValidationTests.Me_TamperedSignature_ReturnsUnauthorized`) — see KI-18 below for its
-  investigation status.
+- ~~Deterministic resolution of the intermittent JWT security test~~ **DONE
+  (2026-09-02)** —
+  (`GarageOS.Tests.Integration.Auth.JwtValidationTests.Me_TamperedSignature_ReturnsUnauthorized`)
+  root-caused and fixed; see KI-18 below (now RESOLVED) for full detail.
 
 WP-9's job going forward is to extend this skeleton and close the remaining items above, not to build CI from scratch.
 **Note for real developer machines:** a developer with normal admin/root on
@@ -421,38 +422,55 @@ mistaken for a hole. Re-verified: full solution build clean, 30/30 unit tests pa
 QA Lead's own PoC shape re-run to confirm it is now correctly flagged.
 **Owner input needed?** No.
 
-### KI-18 — Intermittent failure: `JwtValidationTests.Me_TamperedSignature_ReturnsUnauthorized` (MEDIUM, OPEN — investigation in progress)
+### KI-18 — Intermittent failure: `JwtValidationTests.Me_TamperedSignature_ReturnsUnauthorized` (MEDIUM, RESOLVED 2026-09-02)
 
-**Severity:** MEDIUM. A security-relevant assertion (a tampered JWT signature must be
-rejected) that is not deterministically observed passing/failing under full-batch test
-load is a CI-trust problem even though every reproduction to date shows the underlying
-security behavior is intact when run in isolation -- not yet CRITICAL/BLOCKER because no
-run has shown the assertion's *logic* to be wrong, only its *reliability* under
-concurrent/full-suite conditions, but this must not be normalized as acceptable CI
-behavior (explicit Owner instruction) and blocks WP-9 acceptance until resolved.
+**Severity:** MEDIUM (was). A security-relevant assertion (a tampered JWT signature must be
+rejected) that was not deterministically observed passing/failing under full-batch test
+load was a CI-trust problem, even though every reproduction showed the underlying
+production security behavior was intact -- the bug was confirmed to live entirely in the
+test's own tampering helper, not in `AddJwtBearer`/JWT validation itself (see Root cause).
 **Affects:** WP-4 (`GarageOS.Tests.Integration/Auth/JwtValidationTests.cs`), WP-9
-(gating-completeness).
-**Description:** `Me_TamperedSignature_ReturnsUnauthorized` fails intermittently when the
-full `GarageOS.Tests.Integration` suite runs together (observed during WP-5's own
-"121/121 re-confirmed" pass and noted again during WP-6/WP-7 full-suite runs), but passes
-100% reliably when run in isolation or in a narrow filtered run. Root cause not yet
-determined -- candidate areas flagged by the Owner for investigation: shared
-`WebApplicationFactory`/`IntegrationTestFixture` state, mutable `JwtOptions`/config
-resolution, a shared `HttpClient`'s auth headers, a test-database reset race, token
-factory (`TestJwtTokenFactory`) state, clock/timing assumptions in token validation, any
-other static/shared mutable state, or genuine parallel-test interference within the
-`[Collection("Integration")]` grouping.
-**Status: OPEN, INVESTIGATION IN PROGRESS (assigned 2026-08-28).** Primary: QA Automation
-Engineer. Collaborator: Backend Engineer. Security Reviewer required if the root cause
-touches JWT validation/authentication logic itself. Explicit constraints on the fix (Owner
-order): do not just increase retries and call it fixed; do not quarantine/skip the test;
-do not remove the assertion; do not weaken JWT validation; do not serialize the entire
-suite to hide a race unless that is proven to be the correct test-isolation architecture
-(not merely the easiest workaround). A fix is accepted only once the root cause is
-explained, a regression test/architecture correction exists where appropriate, repeated
-full-suite runs are stable, and Security Reviewer has signed off if auth/security behavior
-changed. This investigation runs in parallel with WP-8 and must not block normal frontend
-implementation. Must be resolved before WP-9 is accepted.
-**Owner input needed?** No, unless the investigation surfaces a genuine backend-contract
-change with security implications, in which case route through Backend Engineer +
-Security Reviewer + Technical Architect first, per standing instruction.
+(gating-completeness) -- WP-9 blocker is now cleared.
+**Root cause (confirmed by QA Automation Engineer investigation, 2026-09-02):** the test's
+`FlipLastChar` helper toggled the *encoded* signature string's final character
+(`'A'<->'B'`) rather than the underlying signature bytes. For a 32-byte HMAC-SHA256
+signature, base64url's final character carries only 4 real bits (the remaining 2 are
+zero-padding per the base64 spec), and `'A'` (`000000`) / `'B'` (`000001`) share identical
+top-4 bits. Since `BuildToken` mints a fresh random signature on every call, whenever the
+*real* signature's last character already happened to be `'A'` (~1/16 of runs, empirically
+confirmed at 0.0618 against a theoretical 0.0625 over 500,000 simulated trials), flipping
+it to `'B'` only changed a padding bit that .NET's `Base64UrlEncoder`/`Convert.FromBase64String`
+discard on decode -- so the "tampered" token decoded back to byte-identical, still-valid
+signature bytes. The token was therefore accepted as genuinely valid by `AddJwtBearer`
+(reaching the controller, returning 404 for the synthetic garage/sub, same as the
+`Me_ValidToken_...` case) instead of being rejected with 401, causing the assertion to fail
+on that ~1-in-16 draw. This is why the test was reliable in small manual isolation reruns
+(too few draws to hit the collision) but showed up under repeated/full-suite runs (more
+draws, more chances to hit it) -- confirmed to be a probabilistic property of the test
+helper itself, not shared `WebApplicationFactory` state, `JwtOptions` mutation, a shared
+`HttpClient`, a database-reset race, token-factory state, clock/timing, or parallel-test
+interference -- all of which were independently ruled out with evidence (single
+non-parallel `[Collection("Integration")]`, `parallelizeTestCollections:false` in
+`xunit.runner.json`, immutable `const` signing key/issuer/audience, fresh `CreateClient()`
+per call, no DB touch on this code path).
+**Fix:** `FlipLastChar` replaced with `FlipSignatureBit`, which decodes the signature
+segment to raw bytes, flips every bit of the *first* byte (always a full, padding-free
+base64 group for a signature this length), and re-encodes -- deterministically invalidating
+the signature on every run, with zero change to `AddJwtBearer`, `TokenValidationParameters`,
+`JwtOptions`, or any production JWT validation code. A new regression test,
+`FlipSignatureBit_AlwaysProducesADifferentDecodedByteSequence`, iterates 1,000 synthetic
+32-byte signatures (fixed seed) asserting the flip always changes the decoded bytes, guarding
+against this exact bypass class reappearing. Both changes are confined to
+`JwtValidationTests.cs`.
+**Verification:** full backend suite (`dotnet test`, real PostgreSQL 15, no Docker/no
+substitute) re-run 5 consecutive times after the fix, each a clean 181/181 pass (47 unit +
+134 integration, the +1 integration test being the new regression guard) with zero
+flakes -- `Me_TamperedSignature_ReturnsUnauthorized` passed deterministically on every run.
+**Security Reviewer sign-off:** not required as a gate -- the fix touches only test-helper
+code (`JwtValidationTests.cs`'s private `FlipLastChar`/`FlipSignatureBit`), not
+`AddJwtBearer` configuration, `TokenValidationParameters`, key resolution, or any production
+authentication code path; production JWT signature validation was never actually broken.
+Security Reviewer is being looped in via the WP-8 report for awareness given the subject
+matter.
+**Status: RESOLVED.** WP-9's KI-18 blocker is cleared.
+**Owner input needed?** No.
