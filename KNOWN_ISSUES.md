@@ -66,12 +66,23 @@ DONE:
   proof run and independently re-run by both WP-7's QA Lead and Security
   Reviewer gates.
 
+DONE (added 2026-09-02, WP-8):
+- WP-8 frontend (React/TS/Vite) built, tested, and integrated. Frontend
+  build/typecheck, 79/79 Vitest+RTL, and 4/4 real-backend Playwright e2e
+  all pass on-device. `build-and-test-frontend` and `e2e-frontend` jobs
+  wired into `.github/workflows/ci.yml` alongside the existing backend
+  `build-and-test` job.
+- A CRITICAL (vitest RCE, GHSA-5xrq-8626-4rwp) and a HIGH (vite
+  `server.fs.deny` bypass, GHSA-fx2h-pf6j-xcff) dependency finding from
+  Security Reviewer's WP-8 gate were fixed by a major-version bump (vite
+  ^5.4.21->^7.3.6, vitest ^2.1.9->^4.1.11, react-router-dom
+  ^6.30.6->^7.18.3) and independently re-verified via a from-scratch
+  `npm install && npm audit` (0 vulnerabilities).
+
 STILL OPEN (WP-9 is NOT gating-complete):
-- WP-8 frontend build/tests, once the frontend exists.
-- Integrating the frontend suite into `ci.yml` alongside the backend suite.
 - The pipeline has still never actually run in anger — no push/PR has
-  triggered it yet; device-side `dotnet test`/script execution remains the
-  verified source of truth so far.
+  triggered it yet; device-side `dotnet test`/`npm test`/`npx playwright
+  test`/script execution remains the verified source of truth so far.
 - Verifying the CI gate's negative behavior end-to-end in the actual CI
   environment (not just proven locally on-device).
 - A final QA/Security/Architect review of the CI configuration itself, not

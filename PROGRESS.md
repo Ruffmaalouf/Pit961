@@ -768,3 +768,187 @@ signed off.
 **Next:** Commit WP-6 to git; update tracking docs (done, this entry). With WP-6 and
 WP-7 both accepted, report to the Owner per the standing ~28-section report
 requirement.
+
+---
+
+## WP-8: Frontend Scaffold (React/TS/Vite, real WP-4 auth integration) (2026-09-02)
+
+**Owner order:** "OWNER / CONTROL ROOM ORDER — START WP-8 FRONTEND." React 18 +
+TypeScript + Vite + Tailwind + shadcn + Vitest + RTL + Playwright, no Docker
+anywhere, `prototype.html` as the visual source of truth (any unimplementable
+element logged to `DESIGN_IMPLEMENTATION_DIFFERENCES.md`), real
+`POST /api/v1/auth/login` (no fake auth endpoint), access token in-memory
+only / refresh token in an httpOnly cookie, real `GET /api/config/branding`
+consumption, 10 named Vitest+RTL scenarios + 4 named Playwright scenarios
+(the final login test against the real backend and the real seeded
+development account only, no fake backend behavior), CI extension is WP-8's
+own responsibility, specialist gate order Frontend Engineer -> Design
+Lead/UI-UX -> QA Automation -> QA Lead -> Security Reviewer -> Technical
+Architect where needed. Specialist owner: Frontend Engineer, device
+executor: Company Dispatcher (Device Execution Protocol followed throughout).
+
+**Implementation.** Full scaffold under `frontend/{app,components,features,
+hooks,layouts,lib,pages,services,stores,types,validation}/`. Login screen
+freshly designed (no prototype precedent -- see
+`DESIGN_IMPLEMENTATION_DIFFERENCES.md` item 5) wired to the real WP-4 login
+endpoint via a hand-rolled `apiClient` (`services/apiClient.ts`) that injects
+the in-memory bearer token, retries exactly once through
+`POST /api/v1/auth/refresh` on a 401, and normalizes `ProblemDetails` error
+bodies into a typed `ApiError`. Access token lives only in a Zustand store
+(`stores/authStore.ts`), never in `localStorage`/`sessionStorage`; the
+refresh token is an httpOnly cookie the frontend never reads, only relies on
+via `credentials:'include'` -- protected-route hiding is a UX convenience
+only, the backend remains the sole authority. `BrandMark`
+(`components/brand-mark.tsx`) consumes `GET /api/config/branding` through a
+`brandingStore`, derives its glyph from the runtime `productDisplayName` (never
+a hardcoded letter/name), and gates `LogoUrl` through `safeHttpUrlOrNull()`
+(rejects `javascript:`/`data:`/protocol-relative and any non-http(s) scheme)
+before ever using it as an `<img src>`. `AppShellLayout` implements the
+76px nav rail + 52px header authenticated shell per `prototype.html`,
+including its per-item 7.5px mono-caps captions (`label: name.toUpperCase()`
+in the prototype's own rail data) and a truncated
+`productDisplayName`-under-brand-mark label with a native `title` tooltip
+for the full name on hover (new element, no prototype precedent -- see
+`DESIGN_IMPLEMENTATION_DIFFERENCES.md` item 8).
+
+**Real-device-screenshot-caught bug, not just code review.** Visual
+verification against the actual running dev server (Playwright-driven
+Chromium screenshots, not just reading the diff) caught a genuine
+branding-robustness bug: a `LogoUrl` that passes `safeHttpUrlOrNull()` (i.e.
+is a syntactically safe `https://` URL) can still 404/DNS-fail at runtime,
+which left a broken-image icon with overflowing alt text on screen. Fixed
+with an `onError`-driven `logoFailed` state in `BrandMark` that falls back to
+the glyph mark, re-armed on every `logoUrl` change; a new test case
+(`falls back to the initial when a syntactically-safe logoUrl fails to
+load`) locks this in.
+
+**Process error and correction: specialist-review-snapshot staleness.**
+Design Lead, Security Reviewer, and QA Lead's first review round ran
+against `/root/pit961-frontend/frontend/` -- a copy of the frontend taken
+immediately after the initial cloud-sandbox-to-device transfer, before the
+brand-mark fix, the Vitest pool-hang fix, and the Playwright
+headless-shell-stall fix were made directly on-device. This produced
+false-negative findings (issues that were already fixed being reported as
+still-present). Caught and corrected mid-review: re-packaged the current
+device state into a fresh, verified-matching snapshot, re-synced refreshed
+`DESIGN_IMPLEMENTATION_DIFFERENCES.md` content and new screenshots, and
+re-dispatched all three specialists with an explicit acknowledgment of the
+mix-up and pointers to the corrected artifacts. Logged here in full rather
+than omitted, per this project's standing practice of transparent process
+reporting (see the WP-5 JWT-flake and WP-3 CORS/seed-password entries for
+precedent).
+
+**Security Reviewer's WP-8 gate found a real, previously-missed gap.** An
+earlier `npm audit fix --force` pass had NOT actually resolved a CRITICAL
+(vitest RCE, GHSA-5xrq-8626-4rwp -- every vitest 2.x release is vulnerable,
+no patched 2.x exists) or a HIGH (vite `server.fs.deny` bypass,
+GHSA-fx2h-pf6j-xcff -- vite <=6.4.2 is vulnerable, no patched 5.x exists):
+the abbreviated `npm audit` summary looked clean because the fix pass only
+bumped both packages within their existing vulnerable major version, never
+crossing into a patched major. Fixed by a deliberate major-version bump
+(vite `^5.4.21`->`^7.3.6`, vitest `^2.1.9`->`^4.1.11`, react-router-dom
+`^6.30.6`->`^7.18.3` pulled in by peer requirements, `@vitejs/plugin-react`
+`4.3.3`->`^5.2.0` -- the only version whose peer range covers both vite 7
+and vite 8 -- `@types/node`->`^22.15.0`). Vitest 4 removed
+`test.poolOptions.forks.singleFork` (the single-worker pin this device's
+constrained 2-core environment needs to avoid a `threads`-pool hang); the
+equivalent is `test.fileParallelism: false`, applied in `vite.config.ts`.
+No application code changes were needed for React Router v7 -- only
+`Routes`/`Route`/`Navigate`/`Outlet`/`useLocation` are used, all stable
+v6->v7. Re-verified clean on the real device after the bump: `npm run
+build` (typecheck + Vite build), 79/79 Vitest+RTL, 4/4 Playwright e2e
+against the real backend, and a from-scratch `npm install && npm audit`
+(0 vulnerabilities).
+
+**QA Lead's CI-wiring re-verification caught a second, more serious process
+error.** Round 2 of QA Lead's review could not confirm
+`scripts/ci/check-no-legacy-brand.sh` (the WP-7 placeholder-brand CI check)
+actually covers `frontend/`, because the copy handed over
+(`/root/pit961-review/`) had no `frontend/` directory and no unified git
+history. The follow-up attempt to close this by handing over hand-picked
+individual files (`ci.yml`, the script) made it *worse*, not better: QA Lead
+diffed the handed-over `ci.yml` against a differently-stale copy actually
+sitting at the claimed source path and found they disagreed, and found at
+least three other mutually inconsistent partial PIT961 copies scattered
+across the cloud review environment (an unextracted tarball, a stale
+pre-bump snapshot, a doc-extraction artifact with no `frontend/` at all).
+QA Lead correctly refused to sign off on hand-picked files it could not
+verify came from one real, internally consistent checkout, and flagged this
+as an integrity concern, not merely an unconfirmed finding. Fixed properly
+this time: packaged the *entire* current git-tracked device repository (not
+a file selection) into one tarball, extracted it to a single new location
+(`/root/pit961-unified/`), verified `git status --short` is completely
+clean against `HEAD` there, and deleted every other stale/partial PIT961
+copy in the cloud environment so no inconsistent alternate could be
+cross-referenced by mistake again. QA Lead independently re-verified from
+scratch against this one location -- including actually executing both CI
+guard scripts rather than only reading them -- and passed.
+
+**CI extension (WP-8's own responsibility).** `build-and-test-frontend`
+(`npm ci` -> `npm run build` -> `npm test`) and `e2e-frontend`
+(`npm ci` -> `npx playwright install --with-deps chromium` ->
+`npx playwright test`, `needs: build-and-test-frontend`) added to
+`.github/workflows/ci.yml` as siblings of the existing backend
+`build-and-test` job. `e2e-frontend` currently has an explicit TODO for
+`devops-engineer`/WP-9: starting the real backend + dev seed + Vite server
+before the Playwright step is not yet wired into that job (WP-8's own
+device verification confirms the suite passes once both processes are up;
+what's missing is only the CI orchestration of starting them).
+
+**Design conformance.** `DESIGN_IMPLEMENTATION_DIFFERENCES.md` gained two
+new entries: item 5 (freshly-designed login screen, no prototype precedent)
+and item 8 (the `productDisplayName` rail label, also no prototype
+precedent, truncated with a native `title` hover tooltip for the full
+name). Item 7's "76px icon-only sidebar rail" wording was corrected to
+"76px icon + short mono-caps micro-caption sidebar rail" after Design
+Lead's review round flagged it as inconsistent with the implementation --
+verified by reading `prototype.html`'s own rail-item JS data directly
+(`label: name.toUpperCase()`), confirming the prototype rail always carried
+per-item text captions; the doc's original wording was simply inaccurate,
+not the implementation. A hard-clipped-label finding (no visible ellipsis
+on a long tenant name) was investigated via `getComputedStyle` inspection
+(confirmed `text-overflow:ellipsis` correctly applied, `scrollWidth` 182px
+> `clientWidth` 68px, proving active truncation) plus a 4x-device-scale-
+factor zoomed screenshot that clearly shows a real rendered ellipsis glyph
+-- concluded to be a normal-resolution screenshot rendering artifact in the
+original review capture, not a real truncation-treatment bug.
+
+**89 new tests, all passing, zero backend regressions:** 79 frontend
+Vitest+RTL (`App.test.tsx`, `routing.test.tsx`, `LoginForm.test.tsx`,
+`brand-mark.test.tsx`, `support-email-link.test.tsx`, `safe-url.test.ts`,
+`apiClient.test.ts`) + 4 Playwright e2e (`login.spec.ts`, real backend/real
+seeded account/real branding endpoint, no mock server) + 1 backend
+integration regression guard (`FlipSignatureBit_AlwaysProducesADifferentDecodedByteSequence`,
+landed alongside WP-8 this session closing the intermittent JWT-signature-
+tamper test flake -- see `KNOWN_ISSUES.md`, not itself a WP-8 deliverable
+but verified in the same device session). Backend: still **181/181**, zero
+regressions from any WP-8 work (WP-8 touches only `frontend/`,
+`.github/workflows/ci.yml`, and `DESIGN_IMPLEMENTATION_DIFFERENCES.md`).
+
+**Design Lead gate: PASS (two rounds).** Round 1 caught the broken-image
+logo bug via real screenshot review (fixed). Round 2 raised the
+hard-clipped-ellipsis and item-7-wording findings above (both resolved;
+PASS) and, independently while reviewing the resolution, correctly flagged
+that the visible rail label is a distinct element from the 8 fixed nav-item
+captions with no prototype precedent of its own -- leading to new item 8.
+
+**QA Lead gate: PASS (two rounds plus a re-verification).** Round 1 passed
+after the specialist-snapshot-staleness correction above. Round 2 raised
+the CI-wiring MAJOR finding and, on the first attempted close-out, correctly
+rejected an inconsistent hand-picked-files answer as described above;
+passed on re-verification against the single unified checkout.
+
+**Security Reviewer gate: PASS (two rounds).** Round 1 found the vitest
+CRITICAL / vite HIGH dependency findings described above (fixed). Round 2
+independently reinstalled from a clean `node_modules`-free state and
+re-ran `npm audit` itself rather than trusting the fix description or any
+prior audit output, confirming 0 CRITICAL/HIGH findings and no new
+unscoped dependencies introduced by the bump.
+
+**WP-8 status: ACCEPTED.** All three required specialist gates -- Design
+Lead (PASS), QA Lead (PASS), and Security Reviewer (PASS) -- have formally
+signed off, each after finding and requiring a fix for at least one genuine
+issue rather than rubber-stamping.
+
+**Next:** Commit WP-8 tracking-doc updates (this entry); report to the
+Owner per the standing ~35-section WP-8 report requirement.
