@@ -485,3 +485,22 @@ Security Reviewer is being looped in via the WP-8 report for awareness given the
 matter.
 **Status: RESOLVED.** WP-9's KI-18 blocker is cleared.
 **Owner input needed?** No.
+
+---
+
+### KI-19 — Playwright trace-on-retry could embed bearer token/dev password into CI artifact (MEDIUM, RESOLVED 2026-09-02)
+
+**Severity:** MEDIUM (was). Flagged by Security Reviewer during WP-9's CI security gate.
+**Affects:** WP-9 (`frontend/playwright.config.ts`, `.github/workflows/ci.yml`'s `e2e-frontend` job).
+**Description:** `playwright.config.ts` set `trace: 'on-first-retry'`, and the CI job sets
+`retries: 1`. A flaky-then-passing test in CI would capture a full network trace
+(headers + bodies) for the retry, embedded into the always-uploaded `playwright-report`
+artifact (7-day retention) — potentially including the login call's `Authorization`
+bearer header and the seeded dev account's request body
+(`ralph@performanceautogarage.example` / `DevSeed-Pass1!`). Not CRITICAL/HIGH: the
+access token is short-lived (15 min, `JwtOptions.AccessTokenLifetimeMinutes`), the
+job's Postgres/backend are torn down before the artifact is downloadable, and the dev
+password is already public in `frontend/e2e/fixtures.ts`'s own source.
+**Status: RESOLVED.** `trace: 'off'` in `playwright.config.ts` (commit `a9833fd`).
+`screenshot: 'only-on-failure'` already covers CI debugging needs without this exposure.
+**Owner input needed?** No.
