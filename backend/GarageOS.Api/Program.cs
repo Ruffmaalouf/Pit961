@@ -323,6 +323,28 @@ builder.Services.AddHttpClient<IEmailService, ResendEmailService>(client =>
 builder.Services.AddSingleton<IPasswordResetRequestQueue, PasswordResetRequestQueue>();
 builder.Services.AddHostedService<PasswordResetRequestBackgroundService>();
 
+// WP-8: the frontend (Vite dev server, a different origin/port) needs to call this API
+// with cookies (the httpOnly refresh-token cookie) included, which requires a named CORS
+// policy with an explicit origin allow-list + AllowCredentials -- AllowAnyOrigin cannot be
+// combined with AllowCredentials per the CORS spec, and isn't desired here anyway.
+// "Cors:AllowedOrigins" is empty by default (appsettings.json) so Production allows
+// nothing unless explicitly configured; Development/Testing add the local Vite origin.
+const string FrontendCorsPolicy = "Frontend";
+var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+    {
+        if (corsAllowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(corsAllowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        }
+    });
+});
+
 var app = builder.Build();
 
 // --- Middleware pipeline ---------------------------------------------------
@@ -337,6 +359,8 @@ if (app.Environment.IsDevelopment())
 app.UseSerilogRequestLogging();
 
 app.UseRateLimiter();
+
+app.UseCors(FrontendCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
