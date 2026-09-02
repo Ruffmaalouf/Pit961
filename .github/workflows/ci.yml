@@ -160,23 +160,110 @@ jobs:
         run: npm test
 
   # ---------------------------------------------------------------------------
-  # Playwright e2e. Separate job because it needs the real API running.
-  # `PLAYWRIGHT_BASE_URL` and `VITE_API_BASE_URL` are read by
-  # playwright.config.ts / e2e/fixtures.ts -- neither is hardcoded in the specs.
+  # Playwright e2e against the REAL stack: real Vite frontend -> real ASP.NET
+  # Core backend -> real PostgreSQL 15. No mocks, no faked login (WP-9 order,
+  # 2026-09-02). This job owns its own Postgres service container and its own
+  # migrations (separate database from build-and-test's Testing-environment
+  # run) because it must run the backend in the Development environment
+  # specifically -- DevelopmentSeeder
+  # (backend/GarageOS.Infrastructure/Data/Seed/DevelopmentSeeder.cs) only
+  # fires under app.Environment.IsDevelopment() (see Program.cs), and the
+  # e2e specs (frontend/e2e/login.spec.ts) log in with that exact seeded
+  # account (frontend/e2e/fixtures.ts: SEEDED_DEV_USER).
+  #
+  # Deterministic startup: the backend and frontend are started in the
+  # background and polled for real readiness (the backend's own
+  # app.MapHealthChecks("/health"); a plain HTTP probe for the Vite server)
+  # rather than relying on a fixed sleep. Each wait step fails the job with a
+  # clear message, and the captured backend/frontend logs are uploaded as an
+  # artifact whenever the job fails, so a hang or crash is diagnosable from
+  # the Actions UI without rerunning locally. Background processes are always
+  # stopped in a final always()-guarded step.
   # ---------------------------------------------------------------------------
   e2e-frontend:
-    name: E2E (frontend, Chromium)
+    name: E2E (frontend, Chromium, real stack)
     runs-on: ubuntu-latest
-    needs: build-and-test-frontend
+    needs: [build-and-test, build-and-test-frontend]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pit961_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
-      # Point these at wherever the real API and the served frontend live in CI.
+      ASPNETCORE_ENVIRONMENT: Development
+      # Backend/frontend addresses the e2e suite talks to -- read by
+      # playwright.config.ts / e2e/fixtures.ts, never hardcoded in specs.
       VITE_API_BASE_URL: http://localhost:5289
       PLAYWRIGHT_BASE_URL: http://localhost:5173
+      ConnectionStrings__GarageOsDb: "Host=localhost;Port=5432;Database=pit961_e2e;Username=postgres;Password=postgres"
+      ConnectionStrings__PlatformDb: "Host=localhost;Port=5432;Database=pit961_e2e;Username=postgres;Password=postgres"
+      # Test-only JWT signing material for this ephemeral job, sourced from a
+      # GitHub Actions repository secret (CI_E2E_JWT_SIGNING_KEY) -- never
+      # committed in plaintext here or anywhere else (Security Reviewer WP-9
+      # gate confirms this). Not a production key: production keys are
+      # sourced only from environment variables / host secret storage per
+      # appsettings.Development.json's own comment. Program.cs fails closed
+      # at startup on a missing/short signing key, so this secret must be a
+      # real CSPRNG-generated value >=32 bytes -- just not a production one,
+      # and scoped to this ephemeral CI database/job only.
+      Jwt__Issuer: "pit961-ci-e2e"
+      Jwt__Audience: "pit961-ci-e2e"
+      Jwt__SigningKey: ${{ secrets.CI_E2E_JWT_SIGNING_KEY }}
+      Jwt__KeyId: "ci-e2e-1"
+      # Resend is never actually invoked by the WP-8 e2e suite (no
+      # email-sending flow is exercised by login.spec.ts), but
+      # ResendOptions.ValidateOnStart requires a non-empty, well-formed value
+      # or the app fails closed at startup (Program.cs / ResendOptions.cs).
+      # This is an obviously-non-production placeholder string -- not a real
+      # Resend account, not a secret, safe to commit in plaintext.
+      Resend__ApiKey: "re_ci_e2e_placeholder_not_a_real_key"
+      Resend__FromAddress: "ci-e2e@pit961.invalid"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dotnet local tools (dotnet-ef)
+        working-directory: backend
+        run: dotnet tool restore
+
+      - name: Restore NuGet packages
+        run: dotnet restore backend/GarageOS.sln
+
+      - name: Build backend
+        run: dotnet build backend/GarageOS.sln --no-restore
+
+      - name: Apply AppDbContext migrations
+        working-directory: backend
+        run: >-
+          dotnet ef database update
+          --context AppDbContext
+          --project GarageOS.Infrastructure/GarageOS.Infrastructure.csproj
+          --startup-project GarageOS.Api/GarageOS.Api.csproj
+
+      - name: Apply PlatformDbContext migrations
+        working-directory: backend
+        run: >-
+          dotnet ef database update
+          --context PlatformDbContext
+          --project GarageOS.Infrastructure/GarageOS.Infrastructure.csproj
+          --startup-project GarageOS.Api/GarageOS.Api.csproj
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -185,7 +272,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
@@ -193,15 +280,47 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
-      # TODO (devops-engineer): start the real backend (with dev seed data) and
-      # the Vite server before this step. The WP-8 e2e specs log in with the
-      # seeded development account and read GET /api/config/branding live --
-      # there is deliberately no mock server. WP-8's own device verification
-      # confirmed this exact suite passes for real once both processes are up
-      # (see PROGRESS.md / the WP-8 acceptance report) -- what's missing here
-      # is only wiring the backend service + migrations + dev seed into this
-      # job, which is WP-9/devops-engineer's CI-completeness work, not WP-8's.
-      - name: Run Playwright tests
+      - name: Start backend (Development environment, dev seed)
+        working-directory: backend
+        run: |
+          nohup dotnet run --no-build --project GarageOS.Api/GarageOS.Api.csproj --urls http://localhost:5289 > "$GITHUB_WORKSPACE/backend.log" 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/backend.pid"
+
+      - name: Wait for backend readiness
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5289/health > /dev/null; then
+              echo "Backend healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Backend never became healthy within 60s"
+          echo "--- backend.log ---"
+          cat "$GITHUB_WORKSPACE/backend.log" || true
+          exit 1
+
+      - name: Start frontend (Vite dev server)
+        working-directory: frontend
+        run: |
+          nohup npx vite --port 5173 --strictPort > "$GITHUB_WORKSPACE/frontend.log" 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/frontend.pid"
+
+      - name: Wait for frontend readiness
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5173/ > /dev/null; then
+              echo "Frontend healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Frontend never became healthy within 60s"
+          echo "--- frontend.log ---"
+          cat "$GITHUB_WORKSPACE/frontend.log" || true
+          exit 1
+
+      - name: Run Playwright tests (real frontend -> real backend -> real PostgreSQL)
         working-directory: frontend
         run: npx playwright test
 
@@ -212,3 +331,19 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report
           retention-days: 7
+
+      - name: Upload backend/frontend logs on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-service-logs
+          path: |
+            backend.log
+            frontend.log
+          retention-days: 7
+
+      - name: Stop backend and frontend
+        if: ${{ always() }}
+        run: |
+          [ -f backend.pid ] && kill "$(cat backend.pid)" 2>/dev/null || true
+          [ -f frontend.pid ] && kill "$(cat frontend.pid)" 2>/dev/null || true
