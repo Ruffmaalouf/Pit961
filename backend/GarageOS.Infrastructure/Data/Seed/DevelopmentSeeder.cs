@@ -17,7 +17,21 @@ namespace GarageOS.Infrastructure.Data.Seed;
 /// direct Garages.Add.</summary>
 public static class DevelopmentSeeder
 {
-    public static async Task SeedAsync(AppDbContext db, IAccountProvisioningService provisioning)
+    /// <summary>
+    /// WP-8 addition: seeded users previously carried a literal placeholder string
+    /// ("seed-only-not-a-real-hash") as PasswordHash -- not a real PBKDF2 hash, so no
+    /// seeded account could actually pass PasswordHasherService.Verify and log in. This
+    /// blocked WP-8's real-backend Playwright login test, which per the Owner's explicit
+    /// instruction must use the existing approved development seed account rather than
+    /// fake backend behavior. Fixed by hashing a real, clearly-labeled dev-only password
+    /// via the actual IPasswordHasher for every seeded user (same hasher production login
+    /// uses), so this seed only ever runs under app.Environment.IsDevelopment() -- never
+    /// Testing, never Production (see Program.cs guard) -- and is not a credential anyone
+    /// should reuse outside a local dev database.
+    /// </summary>
+    public const string DevSeedPassword = "DevSeed-Pass1!";
+
+    public static async Task SeedAsync(AppDbContext db, IAccountProvisioningService provisioning, IPasswordHasher passwordHasher)
     {
         if (await db.Accounts.AnyAsync(a => a.Id == SeedIds.PerformanceAutoGarageAccount))
         {
@@ -46,14 +60,15 @@ public static class DevelopmentSeeder
                 Address: "Beirut, Lebanon",
                 Id: SeedIds.PerformanceAutoGarage));
 
+        var devPasswordHash = passwordHasher.Hash(DevSeedPassword);
         var users = new[]
         {
-            new User { Id = SeedIds.UserRalph, GarageId = garage.Id, Email = "ralph@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Ralph", Role = "owner" },
-            new User { Id = SeedIds.UserSarahKhalil, GarageId = garage.Id, Email = "sarah.khalil@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Sarah Khalil", Role = "advisor" },
-            new User { Id = SeedIds.UserAhmedHassan, GarageId = garage.Id, Email = "ahmed.hassan@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Ahmed Hassan", Role = "mechanic" },
-            new User { Id = SeedIds.UserHassanAli, GarageId = garage.Id, Email = "hassan.ali@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Hassan Ali", Role = "mechanic" },
-            new User { Id = SeedIds.UserMaya, GarageId = garage.Id, Email = "maya@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Maya", Role = "accountant" },
-            new User { Id = SeedIds.UserRimaHaddad, GarageId = garage.Id, Email = "rima.haddad@performanceautogarage.example", PasswordHash = "seed-only-not-a-real-hash", Name = "Rima Haddad", Role = "manager" },
+            new User { Id = SeedIds.UserRalph, GarageId = garage.Id, Email = "ralph@performanceautogarage.example", PasswordHash = devPasswordHash, Name = "Ralph", Role = "owner" },
+            new User { Id = SeedIds.UserSarahKhalil, GarageId = garage.Id, Email = "sarah.khalil@performanceautogarage.example", PasswordHash = devPasswordHash, Name = "Sarah Khalil", Role = "advisor" },
+            new User { Id = SeedIds.UserAhmedHassan, GarageId = garage.Id, Email = "ahmed.hassan@performanceautogarage.example", PasswordHash = devPasswordHash, Name = "Ahmed Hassan", Role = "mechanic" },
+            new User { Id = SeedIds.UserHassanAli, GarageId = garage.Id, Email = "hassan.ali@performanceautogarage.example", PasswordHash = devPasswordHash, Name = "Hassan Ali", Role = "mechanic" },
+            new User { Id = SeedIds.UserMaya, GarageId = garage.Id, Email = "maya@performanceautogarage.example", PasswordHash = devPasswordHash, Name = "Maya", Role = "accountant" },
+            new User { Id = SeedIds.UserRimaHaddad, GarageId = garage.Id, Email = "rima.haddad@performanceautogarage.example", PasswordHash = devPasswordHash, Name = "Rima Haddad", Role = "manager" },
         };
         db.Users.AddRange(users);
 

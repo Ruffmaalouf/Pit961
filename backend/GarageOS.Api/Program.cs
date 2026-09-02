@@ -358,7 +358,8 @@ if (app.Environment.IsDevelopment())
     using var seedScope = app.Services.CreateScope();
     var seedDbContext = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
     var seedProvisioning = seedScope.ServiceProvider.GetRequiredService<IAccountProvisioningService>();
-    await DevelopmentSeeder.SeedAsync(seedDbContext, seedProvisioning);
+    var seedPasswordHasher = seedScope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    await DevelopmentSeeder.SeedAsync(seedDbContext, seedProvisioning, seedPasswordHasher);
 }
 
 app.Run();
