@@ -24,14 +24,13 @@ export default defineConfig({
     // Pinned to a single forked worker: the default `threads` pool hangs
     // indefinitely partway through the suite on constrained (2-core) CI/dev
     // runners, even though every test that does run passes. This is a worker
-    // resource-contention issue in that environment, not a test defect — all
-    // 78 tests pass reliably and quickly (~30s) under `forks`/`singleFork`.
+    // resource-contention issue in that environment, not a test defect.
     // Verified on the real device before this WP-8 acceptance was signed off.
+    //
+    // Vitest 4 removed `poolOptions.forks.singleFork` — the equivalent is
+    // `fileParallelism: false`, which forces `maxWorkers` to 1 regardless of
+    // pool. See https://vitest.dev config migration notes for v4.
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    fileParallelism: false,
   },
 });
