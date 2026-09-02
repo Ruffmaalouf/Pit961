@@ -16,3 +16,8 @@ public sealed class DemoOptions
     /// at runtime rather than hardcoded.</summary>
     public string Message { get; set; } = string.Empty;
 }
+
+// WP-9 negative-gate proof (temporary, never merged to main): deliberately
+// reintroduces a Resend API host reference outside ResendEmailService.cs to
+// prove the CI grep gate actually blocks it. Removed immediately after the
+// CI failure is confirmed. https://api.resend.com/emails
