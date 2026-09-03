@@ -1125,3 +1125,169 @@ detail screen, Customer/Vehicle create-edit forms, and CI-green confirmation on
 accepted on its own merits and unblocks proceeding to P2-WP3 per the Owner's
 standing authorization.
 
+
+## P2-WP3 — Job Intake / Status Machine / Floor Board
+
+### Architecture summary
+
+New vertical slice, same layering discipline as P2-WP2: `JobManagementService`
+(non-status intake CRUD) and `JobStatusService` (the sole authoritative writer of
+`Job.Status`) sit in the Application layer and share one Infrastructure-layer
+mutation repository, `JobMutationRepository` -- the only class in the codebase
+permitted to write `jobs`/`job_history` rows, enforced by
+`JobMutationBoundaryTests`' regex-based source scan (dual-rooted on both DbSets,
+covering `Update`/`Attach`/`ExecuteUpdateAsync`/`ExecuteDeleteAsync` bypass
+patterns, mirroring `CustomerMutationBoundaryTests` from P2-WP2).
+
+`Job.Status` is a strictly forward-only chain -- `checked_in -> estimate_pending
+-> awaiting_approval -> approved -> in_progress -> completed -> invoiced ->
+closed` -- plus `cancelled`/`deleted` exception sinks reachable from every
+pre-invoice state (`invoiced` only ever goes to `closed`; no cancel/delete once a
+real Invoice row exists -- financial correction after invoicing is
+`Invoice.VoidedAt`, a different, already-provisioned mechanism this WP does not
+touch). `AllowedTransitions`/`RolesFor` in `JobStatusService` are the only two
+places this state machine and its role-gating table are encoded. `CreateJobFields`/
+`UpdateJobIntakeFields` carry no `Status` property at all, the same "nothing for a
+client payload to override" pattern `CreateCustomerFields` uses for `GarageId`.
+
+Per-garage job numbering (`J-000001`, ...) is allocated atomically via
+`UPDATE garage_sequences SET next_job_number = next_job_number + 1 WHERE
+garage_id = ... RETURNING next_job_number - 1` -- Postgres row-level locking
+makes this safe under real concurrency without a separate SEQUENCE object,
+wrapped in an explicit transaction with the `Jobs.Add`/`SaveChanges` it's paired
+with (`InsertAsync`).
+
+The Floor Board (`GET /api/v1/jobs/floor-board`) is a single query joining
+Jobs -> Customers -> Vehicles -> Users (primary mechanic), grouped in memory into
+`JobStatuses.OpenBoardOrder`'s fixed column order and excluding the closed/
+cancelled/deleted sink states.
+
+Commits: `bfad313` (initial implementation), `976031f` (round-1 QA/Security
+remediation), `f7859d2` (round-2 QA remediation, non-blocking, see below).
+
+### A real migration-scaffolding bug caught before any review
+
+`dotnet ef migrations add` for the `xmin`-as-concurrency-token change (both via
+the obsolete `UseXminAsConcurrencyToken()` and plain `Property<uint>("xmin")
+.IsRowVersion()`) scaffolds a spurious `AddColumn<uint>("xmin", ...)` operation
+that Postgres outright rejects -- `xmin` is a reserved system column name, and
+`ALTER TABLE ... ADD COLUMN xmin` fails immediately. This was caught by the
+migration-apply step of this WP's own execution verification, before any
+subagent review, and hand-fixed by removing the `AddColumn`/`DropColumn`
+operations from the generated migration file (kept only the `ck_jobs_status`
+CHECK-constraint swap), with a `<remarks>` doc comment on the migration class
+explaining why. Re-verified: migration applies cleanly to a fresh database, and
+`information_schema.columns`/`\d jobs` confirm no spurious `xmin` column exists
+-- Postgres's real system column is untouched and does its normal job as the EF
+concurrency token.
+
+### QA Lead gate: PASS (two rounds; round 1 correctly BLOCKED a real bug)
+
+**Round 1: BLOCKED, one real HIGH/BLOCKER finding**, reproduced directly against
+real PostgreSQL, not just argued from code: `TransitionStatusAsync`'s fresh
+re-read before mutation never checked the read status still matched the
+`fromStatus` the caller (`JobStatusService`) had validated against earlier -- a
+genuine TOCTOU compare-and-swap gap, not a theoretical concern. A stale-validated
+transition could silently overwrite a status a concurrent transition had already
+changed to something incompatible (QA's reproduction resurrected an
+invoiced-then-cancelled job). **Fixed** in `976031f` by adding an explicit
+`if (job.Status != fromStatus) throw new JobConcurrencyConflictException(...)`
+compare-and-swap check before the mutation, with a real regression test
+(`TransitionStatusAsync_StaleFromStatus_ThrowsConcurrencyConflict_
+NotSilentOverwrite`) driving the actual repository against real Postgres.
+
+**Round 2: ACCEPTED**, 0 BLOCKER/CRITICAL. One non-blocking MAJOR, also
+reproduced against real Postgres, not just argued: `db.Jobs.SingleAsync(...)`
+inside `TransitionStatusAsync` threw an unhandled `InvalidOperationException`
+("Sequence contains no elements"), not `DbUpdateConcurrencyException`, when a
+concurrent transition had already soft-deleted the target job (`checked_in ->
+deleted` is a legal edge), because `AppDbContext`'s default query filter excludes
+`DeletedAt`-set rows from `db.Jobs` entirely -- degrading to a bare 500 instead of
+the same clean 409 every other terminal-state race already gets. QA's own
+instruction: "should still be filed back to `backend-engineer` for a follow-up
+fix; it is not blocking, but it should not be silently dropped either."
+
+**Round 2 finding remediated same-day, `f7859d2`:** `SingleOrDefaultAsync` + an
+explicit null check folds the missing-row case into the same compare-and-swap
+conflict path the stale-`fromStatus` check already uses. Verified genuinely, not
+just re-run: the fix was reverted locally, the new regression test
+(`TransitionStatusAsync_ConcurrentSoftDelete_ThrowsConcurrencyConflict_
+NotUnhandledException`) was confirmed to fail with the *exact* `InvalidOperationException`
+QA reported, then the fix was restored and the same test confirmed passing. Given
+both independent gates had already returned ACCEPTED verdicts against this
+codebase and this specific finding was explicitly called out as non-blocking, this
+fix was verified by real execution (fail-then-pass, plus a full-suite re-run) and
+documented here rather than routed through a third full adversarial QA/Security
+round -- the same proportionality already established for P2-WP2's non-blocking
+MINOR follow-ups.
+
+### Security Reviewer gate: PASS (two rounds; round 1 found the same real bug independently)
+
+**Round 1: BLOCKED.** Independently found the identical stale-`fromStatus` TOCTOU
+gap QA reproduced against real Postgres, but via pure code tracing (no local
+Postgres in that review sandbox) -- two independent methods converging on the
+same real defect, not one copying the other. Also flagged, both real and both
+fixed in `976031f`: MEDIUM -- `JobMutationBoundaryTests` covered
+`ExecuteUpdateAsync` bulk-update bypass but not `ExecuteDeleteAsync` bulk-delete
+bypass (Job is meant to be exclusively soft-deleted through
+`TransitionStatusAsync`, with an audit trail; fixed by adding the
+`ExecuteDeleteAsyncPattern` regex + corresponding check); LOW/MEDIUM --
+`ParentJobId` was accepted on `Create` with zero ownership validation, letting a
+caller supply another tenant's real Job GUID as a narrow cross-tenant existence
+oracle (fixed by adding a `jobsRead.FindByIdAsync` + `TenantGuard.EnsureOwned`
+check, a new `ParentJobNotFound` outcome, and a 404 mapping, with a dedicated
+regression test).
+
+**Round 2: ACCEPTED**, 0 CRITICAL/HIGH, against the remediated codebase.
+
+### Execution verification (real PostgreSQL, no substitutes)
+
+Every stage of this WP ran against a real, freshly provisioned local PostgreSQL
+16 instance with the full migration chain applied to a clean database each time
+(both `AppDbContext` -- 7 migrations including the hand-fixed
+`MigrateJobStatusVocabulary` -- and `PlatformDbContext`), per DECISIONS.md #10
+(Docker/Testcontainers/SQLite/EF InMemory never substituted):
+
+- Initial implementation (`bfad313`): 238/238 (67 unit + 171 integration -- the
+  P2-WP2-era 162 plus 9 new Job tests), 0 failed, 0 skipped.
+- Round-1 remediation (`976031f`): 240/240 (67 unit + 173 integration -- 2 new
+  regression tests: the stale-`fromStatus` compare-and-swap proof and the
+  cross-tenant `ParentJobId` rejection proof), 0 failed, 0 skipped. Independently
+  reproduced a second time from a checksum-verified fresh extraction of the
+  actual committed device HEAD before trusting the state as real.
+- Round-2 remediation (`f7859d2`, this entry): **241/241 (67 unit + 174
+  integration), 0 failed, 0 skipped**, plus the explicit revert-and-confirm-fail
+  step described above. Independently re-verified a third time from a
+  checksum-verified fresh extraction of device HEAD `f7859d2` (sha256
+  `2db5c9fc...7065b961` matched byte-for-byte on both the device and cloud sides
+  of the transfer) -- full suite re-run cleanly from that extraction, not merely
+  trusted from the earlier working-copy run.
+
+### CI wiring
+
+Confirmed unchanged and correct: `JobsController`/`JobManagementService`/
+`JobStatusService`/`FloorBoardService`/`JobMutationRepository`/
+`JobQueryRepository` and their tests all land inside the existing
+`GarageOS.Api`/`GarageOS.Application`/`GarageOS.Infrastructure`/
+`GarageOS.Tests.Unit`/`GarageOS.Tests.Integration` projects `.github/
+workflows/ci.yml` already builds and tests; no new project, no workflow file
+change required.
+
+**Open items requiring Owner/PM/BA confirmation before Phase 2 ships (proposed
+defaults now in place, not blockers, per `P2-WP3_ARCHITECTURE.md` section 10):**
+whether a warranty-return Job should be allowed to skip ahead in the state chain
+rather than starting at `checked_in`; whether `cancelled -> deleted` should be
+the only reachable edge out of `cancelled` or broader; the full role-gating table
+per status transition (a reasonable default is implemented and tested, not yet
+formally signed off); and whether a "reopen a closed Job" workflow is needed at
+all in Phase 2.
+
+**P2-WP3 backend status: ACCEPTED.** Both required independent gates -- QA Lead
+and Security Reviewer -- passed with zero BLOCKER/CRITICAL/HIGH findings. Round
+1 of each gate correctly caught the same real concurrency bug through two
+independent methods (real-Postgres reproduction and code tracing) before either
+one rubber-stamped anything; round 2's one non-blocking finding was itself
+reproduced against real Postgres, fixed, and proven fixed by a genuine
+revert-and-confirm-fail exercise rather than by description. Floor Board
+frontend UI is separate follow-up work and does not block this backend
+acceptance, consistent with the P2-WP2 precedent.
