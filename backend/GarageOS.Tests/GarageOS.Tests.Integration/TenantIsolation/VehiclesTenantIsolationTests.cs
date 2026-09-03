@@ -225,4 +225,87 @@ public class VehiclesTenantIsolationTests(IntegrationTestFixture fixture)
 
         Assert.Empty(matches);
     }
+
+    // --- P2-WP2 QA-remediation: mirror the Customer-side IgnoreQueryFilters()
+    // cross-tenant coverage for Vehicle, and directly exercise
+    // IVehicleQueryRepository.FindByIdIncludingDeletedAsync itself. ---
+
+    [Fact]
+    public async Task SoftDeletedVehicle_NotResolvableViaIgnoreQueryFilters_WhenCrossTenant()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customerInB = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantB.Garage.Id);
+        var vehicleInB = await ResourceSeedHelpers.SeedVehicleAsync(fixture, tenants.TenantB.Garage.Id, customerInB.Id);
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantB.Garage.Id }))
+        {
+            var tracked = await db.Vehicles.SingleAsync(v => v.Id == vehicleInB.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = tenants.TenantB.Owner.Id;
+            await db.SaveChangesAsync();
+        }
+
+        // Same regression this closes for Customer (see CustomersTenantIsolationTests):
+        // a Garage A caller must not be able to use IgnoreQueryFilters() to read Garage
+        // B's soft-deleted vehicle, even though that path bypasses the normal filter.
+        await using var dbAsA = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var result = await dbAsA.Vehicles.IgnoreQueryFilters()
+            .Where(v => v.Id == vehicleInB.Id && v.GarageId == tenants.TenantA.Garage.Id)
+            .SingleOrDefaultAsync();
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FindByIdIncludingDeletedAsync_ReturnsSoftDeletedVehicle_WhenTenantMatches()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customer = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantA.Garage.Id);
+        var vehicle = await ResourceSeedHelpers.SeedVehicleAsync(fixture, tenants.TenantA.Garage.Id, customer.Id);
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id }))
+        {
+            var tracked = await db.Vehicles.SingleAsync(v => v.Id == vehicle.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = tenants.TenantA.Owner.Id;
+            await db.SaveChangesAsync();
+        }
+
+        await using var dbAsA = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var repo = new GarageOS.Infrastructure.Data.Vehicles.VehicleQueryRepository(dbAsA);
+
+        var result = await repo.FindByIdIncludingDeletedAsync(vehicle.Id, tenants.TenantA.Garage.Id);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result!.DeletedAt);
+    }
+
+    [Fact]
+    public async Task FindByIdIncludingDeletedAsync_ReturnsNull_WhenGarageIdArgumentIsCrossTenant()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customerInB = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantB.Garage.Id);
+        var vehicleInB = await ResourceSeedHelpers.SeedVehicleAsync(fixture, tenants.TenantB.Garage.Id, customerInB.Id);
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantB.Garage.Id }))
+        {
+            var tracked = await db.Vehicles.SingleAsync(v => v.Id == vehicleInB.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = tenants.TenantB.Owner.Id;
+            await db.SaveChangesAsync();
+        }
+
+        await using var db2 = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var repo = new GarageOS.Infrastructure.Data.Vehicles.VehicleQueryRepository(db2);
+
+        var result = await repo.FindByIdIncludingDeletedAsync(vehicleInB.Id, tenants.TenantA.Garage.Id);
+
+        Assert.Null(result);
+    }
 }

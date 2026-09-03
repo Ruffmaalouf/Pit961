@@ -166,4 +166,62 @@ public class CustomersTenantIsolationTests(IntegrationTestFixture fixture)
 
         Assert.Null(result);
     }
+
+    // --- P2-WP2 QA-remediation: directly exercise
+    // ICustomerQueryRepository.FindByIdIncludingDeletedAsync itself (not just the inline
+    // IgnoreQueryFilters() pattern above) -- closes the QA gap that the method was
+    // implemented and documented but never covered by a test that actually calls it. ---
+
+    [Fact]
+    public async Task FindByIdIncludingDeletedAsync_ReturnsSoftDeletedCustomer_WhenTenantMatches()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customer = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantA.Garage.Id);
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id }))
+        {
+            var tracked = await db.Customers.SingleAsync(c => c.Id == customer.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = tenants.TenantA.Owner.Id;
+            await db.SaveChangesAsync();
+        }
+
+        await using var dbAsA = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var repo = new GarageOS.Infrastructure.Data.Customers.CustomerQueryRepository(dbAsA);
+
+        var result = await repo.FindByIdIncludingDeletedAsync(customer.Id, tenants.TenantA.Garage.Id);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result!.DeletedAt);
+    }
+
+    [Fact]
+    public async Task FindByIdIncludingDeletedAsync_ReturnsNull_WhenGarageIdArgumentIsCrossTenant()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customerInB = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantB.Garage.Id);
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantB.Garage.Id }))
+        {
+            var tracked = await db.Customers.SingleAsync(c => c.Id == customerInB.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = tenants.TenantB.Owner.Id;
+            await db.SaveChangesAsync();
+        }
+
+        // The method's own re-applied GarageId check (not the ambient FakeCurrentTenant,
+        // since IgnoreQueryFilters() disables that filter) must reject a mismatched
+        // garageId argument -- proves the actual production method, called the way a real
+        // caller would call it, cannot be used to read another tenant's deleted row.
+        await using var db2 = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var repo = new GarageOS.Infrastructure.Data.Customers.CustomerQueryRepository(db2);
+
+        var result = await repo.FindByIdIncludingDeletedAsync(customerInB.Id, tenants.TenantA.Garage.Id);
+
+        Assert.Null(result);
+    }
 }
