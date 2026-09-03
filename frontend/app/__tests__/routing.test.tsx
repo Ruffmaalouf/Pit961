@@ -1,10 +1,20 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppRoutes } from '@/app/routes';
 import { makeBranding, makeUser } from '@/lib/test-utils';
 import { resetAuthStore, useAuthStore } from '@/stores/authStore';
 import { resetBrandingStore, useBrandingStore } from '@/stores/brandingStore';
+
+// Route-guard tests exercise /floor, which since Milestone 1 renders the real
+// Floor Board and fetches GET /api/v1/jobs/floor-board on mount. These tests
+// care about shell chrome (guards, sidebar, header, branding), not Floor data,
+// so the transport layer is mocked to a promise that deliberately never
+// resolves — these synchronous tests finish (and unmount) before it would,
+// which avoids an unawaited post-test state update in FloorPage.
+vi.mock('@/features/jobs/api', () => ({
+  getFloorBoard: vi.fn(() => new Promise(() => {})),
+}));
 
 /**
  * Route-guard behaviour is tested against AppRoutes directly with the stores
@@ -45,7 +55,7 @@ describe('protected routes', () => {
 
     expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /log in/i })).toBeInTheDocument();
-    expect(screen.queryByTestId('app-shell-landing')).toBeNull();
+    expect(screen.queryByTestId('floor-page')).toBeNull();
     expect(screen.queryByTestId('app-sidebar')).toBeNull();
   });
 
@@ -71,7 +81,7 @@ describe('protected routes', () => {
 
     expect(screen.getByTestId('app-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('app-header')).toBeInTheDocument();
-    expect(screen.getByTestId('app-shell-landing')).toBeInTheDocument();
+    expect(screen.getByTestId('floor-page')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /sign in/i })).toBeNull();
   });
 
@@ -115,7 +125,7 @@ describe('protected routes', () => {
 
     renderRoutes('/login');
 
-    expect(screen.getByTestId('app-shell-landing')).toBeInTheDocument();
+    expect(screen.getByTestId('floor-page')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /sign in/i })).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { BrandMark } from '@/components/brand-mark';
 import { NavGlyph } from '@/components/nav-glyph';
 import { Button } from '@/components/ui/button';
@@ -7,24 +7,32 @@ import { NAV_ITEMS } from '@/layouts/nav-items';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useBrandingStore } from '@/stores/brandingStore';
+import { useCrumbStore } from '@/stores/crumbStore';
 
 /**
  * Authenticated GARAGE-TENANT shell: 76px icon-only nav rail + 52px header.
  *
- * WP-8 scope note: this shell exists only to prove the protected-route
- * mechanism and the runtime-branding integration. The nav items are inert
- * placeholders, and the search bar / role switcher / alerts bell from the
- * prototype header are deliberately out of scope here.
+ * WP-8 built this as a placeholder shell. Milestone 1 (P2-WP2/P2-WP3) wires
+ * Floor / Jobs / Customers to real screens — WIRED_PATHS below is what makes
+ * those three clickable Links instead of inert spans; the remaining five
+ * (Clock/Money/Parts/Team/Reports) stay exactly as WP-8 left them, since none
+ * of that is in scope yet. The search bar / role switcher / alerts bell from
+ * the prototype header remain out of scope.
  *
  * This is a tenant surface. Platform-admin capabilities are a separate role
  * and domain and must never be merged into this shell.
  */
-export function AppShellLayout({ crumb = 'FLOOR CONTROL' }: { crumb?: string }) {
+const WIRED_PATHS = new Set(['/floor', '/jobs', '/customers']);
+
+export function AppShellLayout() {
   const location = useLocation();
   const productDisplayName = useBrandingStore(
     (state) => state.config?.productDisplayName ?? '',
   );
   const user = useAuthStore((state) => state.user);
+  const pageCrumb = useCrumbStore((state) => state.crumb);
+  const activeNavLabel = NAV_ITEMS.find((item) => location.pathname.startsWith(item.path))?.label;
+  const crumb = pageCrumb ?? activeNavLabel?.toUpperCase() ?? 'GARAGEOS';
 
   return (
     <div className="flex min-h-screen w-full bg-surface-app">
@@ -43,6 +51,7 @@ export function AppShellLayout({ crumb = 'FLOOR CONTROL' }: { crumb?: string }) 
             // treatment for long names yet.
             <span
               title={productDisplayName}
+              data-testid="shell-product-display-name"
               className="max-w-[68px] truncate font-mono text-micro uppercase tracking-[0.16em] text-rail-label"
             >
               {productDisplayName}
@@ -58,35 +67,55 @@ export function AppShellLayout({ crumb = 'FLOOR CONTROL' }: { crumb?: string }) 
         <ul className="mt-[13px] flex w-full flex-col items-center gap-[3px]">
           {NAV_ITEMS.map((item) => {
             const active = location.pathname.startsWith(item.path);
-            return (
-              <li key={item.key} className="relative">
+            const wired = WIRED_PATHS.has(item.path);
+            const railClassName = cn(
+              'relative flex w-[58px] flex-col items-center gap-[5px] rounded-[10px] px-0 pb-[5px] pt-[7px]',
+              wired ? 'cursor-pointer' : 'cursor-default',
+              active
+                ? 'bg-gradient-to-b from-[#232a2e] to-[#1a2023] shadow-rail-active'
+                : 'bg-transparent',
+            );
+            const railContent = (
+              <>
+                {active ? (
+                  <span
+                    aria-hidden
+                    className="absolute -left-[9px] bottom-[9px] top-[9px] w-[3px] rounded-r-[3px] bg-accent-primary shadow-rail-blade"
+                  />
+                ) : null}
+                <NavGlyph glyphKey={item.key} active={active} />
                 <span
-                  data-testid={`nav-item-${item.key}`}
-                  data-active={active ? 'true' : 'false'}
-                  aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'relative flex w-[58px] cursor-default flex-col items-center gap-[5px] rounded-[10px] px-0 pb-[5px] pt-[7px]',
-                    active
-                      ? 'bg-gradient-to-b from-[#232a2e] to-[#1a2023] shadow-rail-active'
-                      : 'bg-transparent',
+                    'font-mono text-micro uppercase tracking-rail',
+                    active ? 'text-[#d7b184]' : 'text-rail-label',
                   )}
                 >
-                  {active ? (
-                    <span
-                      aria-hidden
-                      className="absolute -left-[9px] bottom-[9px] top-[9px] w-[3px] rounded-r-[3px] bg-accent-primary shadow-rail-blade"
-                    />
-                  ) : null}
-                  <NavGlyph glyphKey={item.key} active={active} />
-                  <span
-                    className={cn(
-                      'font-mono text-micro uppercase tracking-rail',
-                      active ? 'text-[#d7b184]' : 'text-rail-label',
-                    )}
-                  >
-                    {item.label}
-                  </span>
+                  {item.label}
                 </span>
+              </>
+            );
+            return (
+              <li key={item.key} className="relative">
+                {wired ? (
+                  <Link
+                    to={item.path}
+                    data-testid={`nav-item-${item.key}`}
+                    data-active={active ? 'true' : 'false'}
+                    aria-current={active ? 'page' : undefined}
+                    className={railClassName}
+                  >
+                    {railContent}
+                  </Link>
+                ) : (
+                  <span
+                    data-testid={`nav-item-${item.key}`}
+                    data-active={active ? 'true' : 'false'}
+                    aria-current={active ? 'page' : undefined}
+                    className={railClassName}
+                  >
+                    {railContent}
+                  </span>
+                )}
               </li>
             );
           })}

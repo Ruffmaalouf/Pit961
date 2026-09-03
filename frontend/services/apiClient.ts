@@ -32,6 +32,35 @@ export const CONFIG_ENDPOINTS = {
   branding: '/api/config/branding',
 } as const;
 
+/** P2-WP2. All require the "GarageTenant" policy — always call with `auth: true`. */
+export const CUSTOMER_ENDPOINTS = {
+  search: '/api/v1/customers',
+  detail: (id: string) => `/api/v1/customers/${id}`,
+  create: '/api/v1/customers',
+  update: (id: string) => `/api/v1/customers/${id}`,
+  softDelete: (id: string) => `/api/v1/customers/${id}`,
+  vehicles: (customerId: string) => `/api/v1/customers/${customerId}/vehicles`,
+} as const;
+
+/** P2-WP2. All require the "GarageTenant" policy — always call with `auth: true`. */
+export const VEHICLE_ENDPOINTS = {
+  byId: (id: string) => `/api/v1/vehicles/${id}`,
+  create: '/api/v1/vehicles',
+  update: (id: string) => `/api/v1/vehicles/${id}`,
+  softDelete: (id: string) => `/api/v1/vehicles/${id}`,
+  checkDuplicatePlate: '/api/v1/vehicles/check-duplicate-plate',
+} as const;
+
+/** P2-WP3. All require the "GarageTenant" policy — always call with `auth: true`. */
+export const JOB_ENDPOINTS = {
+  byId: (id: string) => `/api/v1/jobs/${id}`,
+  create: '/api/v1/jobs',
+  updateIntake: (id: string) => `/api/v1/jobs/${id}`,
+  history: (id: string) => `/api/v1/jobs/${id}/history`,
+  transitionStatus: (id: string) => `/api/v1/jobs/${id}/status-transitions`,
+  floorBoard: '/api/v1/jobs/floor-board',
+} as const;
+
 /** Fallback copy used only when the server gave us no ProblemDetails title. */
 const GENERIC_ERROR_TITLE = 'Something went wrong. Please try again.';
 const NETWORK_ERROR_TITLE = 'Could not reach the server. Check your connection and try again.';
@@ -220,6 +249,10 @@ export const apiClient = {
     request<T>(path, { ...options, method: 'GET' }),
   post: <T>(path: string, body?: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
     request<T>(path, { ...options, method: 'POST', body }),
+  put: <T>(path: string, body?: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
+    request<T>(path, { ...options, method: 'PUT', body }),
+  del: <T>(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
+    request<T>(path, { ...options, method: 'DELETE' }),
 };
 
 /** Test-only: clears the shared in-flight refresh promise. */

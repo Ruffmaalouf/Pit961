@@ -34,7 +34,7 @@ test.describe('WP-8 login and authenticated shell', () => {
     expect((await loginResponse).status()).toBe(200);
 
     await expect(page).toHaveURL(/\/floor$/);
-    await expect(page.getByTestId('app-shell-landing')).toBeVisible();
+    await expect(page.getByTestId('floor-page')).toBeVisible();
     await expect(page.getByTestId('form-error-banner')).toHaveCount(0);
   });
 
