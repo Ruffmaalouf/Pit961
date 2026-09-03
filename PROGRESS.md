@@ -994,3 +994,134 @@ not local simulation:
   deleted (local and remote) -- `main` confirmed clean afterward.
 - **3-consecutive-clean-run stability**: in progress, tracked in this same push.
 
+
+---
+
+## P2-WP2 — Customer & Vehicle vertical slice (2026-09-03)
+
+Full backend vertical slice for Customer and Vehicle: domain entities, EF Core
+configuration + migration, application services, repositories, controllers, DTOs,
+DI wiring, exception handling, and tests -- implementing ratified Owner Decisions
+#4 and #5 from `DECISIONS.md` #12.
+
+**Decision #4 (Customer/Vehicle soft delete only, no hard delete):** both entities
+implement `ITenantOwned`/`ISoftDeletable` (`DeletedAt`/`DeletedBy`, with a real FK
+to `users`, `SetNull` on user delete), composed automatically into the existing
+centralized tenant query filter (`AppDbContext.ApplyTenantQueryFilters`) -- no
+per-entity `HasQueryFilter` needed. Soft-delete is gated server-side to
+owner/manager roles via `CustomerManagementService`/`VehicleManagementService`
+(`RolePermissionException` -> 403), never routed through `IBusinessRuleAuthorizer`
+(DECISIONS.md #7 scopes that interface strictly to the two named money-threshold
+policies). Any read path with a legitimate reason to see a soft-deleted row uses
+`IgnoreQueryFilters()` and re-applies the tenant check by hand, since that call
+disables both filter halves at once.
+
+**Decision #5 (duplicate vehicle plate = warn, never hard-block):** the unique
+constraint on `vehicles_plate_idx` was removed (now non-unique, explicit guardrail
+comment at the index definition). Create/update always succeeds (201/200, never
+409); `VehicleManagementService.CheckDuplicatePlateAsync` normalizes
+(trim/collapse whitespace/uppercase) and returns a duplicate-match list surfaced
+in the response body, plus a standalone live check-duplicate-plate endpoint.
+
+Commits: `9fa53e2` (full vertical slice) and `f047a98` (QA-remediation, see below).
+
+### Process note: a review-infrastructure failure, not a product defect
+
+The first QA Lead review pass (against `9fa53e2`) returned a BLOCKED verdict with
+one CRITICAL finding: that the claimed API test files
+(`CustomersApiTests.cs`/`VehiclesApiTests.cs`) and the claimed soft-delete/
+`IgnoreQueryFilters`/duplicate-plate additions to the tenant-isolation test files
+did not exist. This was correct as a statement about what QA actually reviewed --
+QA had been handed a stale, incomplete snapshot (a leftover upload from earlier in
+the session), not the real committed repository, and it had no way to verify that
+independently at the time. Direct inspection of the real repository at commit
+`9fa53e2` (`git show 9fa53e2 --stat` on the actual device-linked checkout)
+confirmed all four files existed exactly as the commit message described. **This
+specific CRITICAL is withdrawn as a false positive caused by a stale review
+artifact, not a real product defect** -- the same class of process failure as the
+WP-8/WP-9 stale-snapshot incidents recorded earlier in this file, now recurring a
+third time. Two other findings from that same review round were real: no test
+called `FindByIdIncludingDeletedAsync` directly (only the equivalent inline
+`IgnoreQueryFilters()` pattern was tested), and `VehiclesTenantIsolationTests.cs`
+was missing the cross-tenant `IgnoreQueryFilters()` regression test that the
+Customer-side file already had. Both were remediated in `f047a98` (5 new tests).
+
+**Fix going forward:** for this WP's formal re-review, a fresh unified snapshot
+was packaged directly from the real device repo at the exact accepted HEAD,
+transferred via the device bridge's staging mechanism, and independently
+sha256-verified byte-for-byte both by the packaging step and, separately, by the
+Security Reviewer re-extracting and diffing it themselves against the same
+tarball before trusting a single line of it. Both specialists were given the
+tarball's checksum and full instructions to verify independently rather than take
+any characterization on faith.
+
+### Execution verification (real PostgreSQL, no substitutes)
+
+Ran against a real local PostgreSQL 16 instance (project requires 15+; Docker,
+Testcontainers, SQLite and EF InMemory are never substituted, per DECISIONS.md
+#10) with the full migration chain freshly applied to a clean database (both
+`AppDbContext` and `PlatformDbContext`, matching CI's own two-context apply
+sequence in `.github/workflows/ci.yml`):
+
+- Migration chain: all 6 `AppDbContext` migrations plus `PlatformDbContext`'s
+  `InitialPlatformSchema` applied cleanly to a fresh database, including the new
+  `20260903070335_AddCustomerVehicleSoftDeleteAndFixPlateIndex`. Schema verified
+  directly via `\d vehicles`/`\d customers` and `pg_indexes`: `vehicles_plate_idx`
+  confirmed as a plain (non-unique) `CREATE INDEX`; `deleted_at`/`deleted_by`
+  columns and `fk_*_users_deleted_by` (`ON DELETE SET NULL`) present on both
+  tables.
+- Full suite: **51 unit + 162 integration = 213 total tests, 213 passed, 0
+  failed, 0 skipped.** (162 integration = the pre-P2-WP2 157 plus the 5 new
+  `f047a98` remediation tests, all individually confirmed passing by name.)
+
+### QA Lead gate: PASS (two rounds; round 1's CRITICAL withdrawn as described above)
+
+Round 2 (fresh adversarial review against the verified unified checkout, real
+test-execution log, explicit instruction not to merely confirm the round-1 fix)
+returned **ACCEPTED**, 0 BLOCKER/CRITICAL/MAJOR. Two non-blocking MINOR items
+routed as follow-up, not gate blockers: no automated test exercises the
+`"manager"` role succeeding at soft-delete (only `"owner"` success and
+`"mechanic"` 403 are covered; the code itself is correct, this is a coverage
+gap); a stale doc-comment cross-reference to a test file name that doesn't
+exist (`CustomerSoftDeleteTests` -> actually `CustomersTenantIsolationTests`).
+
+### Security Reviewer gate: PASS (one round)
+
+Independently re-verified the checksum and re-extracted/diffed the tarball
+byte-for-byte before trusting it. **ACCEPTED**, 0 CRITICAL/HIGH. Confirmed by
+direct trace: GarageId is server-derived only on every write path (no client-
+suppliable GarageId field on any request DTO); every `IgnoreQueryFilters()` call
+site re-applies an explicit tenant check; nested Customer->Vehicle ownership is
+verified via the tenant-filtered parent lookup; the duplicate-plate check cannot
+leak cross-tenant data and requires authentication; soft-delete is owner/manager-
+gated entirely server-side with no alternate bypass endpoint; no real
+secrets/credentials/PII in the diff. One MEDIUM (non-blocking): the
+architecture-boundary scanner (`CustomerMutationBoundaryTests`/
+`VehicleMutationBoundaryTests`) is a regex heuristic, not a compiler-level
+control -- acknowledged gaps (sync `ExecuteUpdate`/`ExecuteDelete`, quoted-
+identifier raw SQL) logged as CI-hardening follow-up, not an active exploit path
+since only the two allow-listed repositories currently mutate these tables. One
+LOW (non-blocking): missing HTTP-level regression test for vehicle-create against
+an actual cross-tenant `CustomerId` (the code path itself was verified correct by
+trace and by an equivalent existing test).
+
+**P2-WP2 backend status: ACCEPTED.** Both required independent gates -- QA Lead
+and Security Reviewer -- passed with zero BLOCKER/CRITICAL/HIGH findings, after
+QA's round 1 correctly rejected an unverifiable review artifact rather than
+rubber-stamping it, and after two real coverage gaps it found were fixed and
+re-verified by execution, not by description.
+
+**CI wiring:** confirmed correct, unchanged. The new test files land inside the
+existing `GarageOS.Tests.Unit`/`GarageOS.Tests.Integration` projects, which
+`.github/workflows/ci.yml`'s existing `dotnet test backend/GarageOS.sln --no-build`
+step already picks up automatically; no new test project was added, so no
+workflow file change was required. CI's own Postgres 15 service container and
+two-context migration-apply sequence match what was independently verified above.
+
+**Not yet done (frontend/CI push confirmation tracked separately):** the Customer
+detail screen, Customer/Vehicle create-edit forms, and CI-green confirmation on
+`main` for this specific push are the next steps before P2-WP2 as a whole
+(backend + frontend) is considered fully complete; the backend portion above is
+accepted on its own merits and unblocks proceeding to P2-WP3 per the Owner's
+standing authorization.
+
