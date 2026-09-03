@@ -17,6 +17,8 @@ using GarageOS.Infrastructure.Data.Provisioning;
 using GarageOS.Infrastructure.Data.Estimates;
 using GarageOS.Infrastructure.Data.Customers;
 using GarageOS.Infrastructure.Data.Vehicles;
+using GarageOS.Infrastructure.Data.Jobs;
+using GarageOS.Application.Jobs;
 using GarageOS.Infrastructure.Data.Seed;
 using GarageOS.Infrastructure.Email;
 using GarageOS.Infrastructure.Security;
@@ -221,6 +223,14 @@ builder.Services.AddScoped<IVehicleMutationRepository, VehicleMutationRepository
 builder.Services.AddScoped<IVehicleQueryRepository, VehicleQueryRepository>();
 builder.Services.AddScoped<CustomerManagementService>();
 builder.Services.AddScoped<VehicleManagementService>();
+
+// P2-WP3 -- Job intake / status machine / Floor Board. IJobMutationRepository is the sole
+// authoritative write surface for Job/JobHistoryEntry, enforced by JobMutationBoundaryTests.
+builder.Services.AddScoped<IJobMutationRepository, JobMutationRepository>();
+builder.Services.AddScoped<IJobQueryRepository, JobQueryRepository>();
+builder.Services.AddScoped<JobManagementService>();
+builder.Services.AddScoped<JobStatusService>();
+builder.Services.AddScoped<FloorBoardService>();
 
 // Sliding-window rate limiters, partitioned by remote IP (WP-4 brief §15). Real-IP
 // resolution behind a reverse proxy (X-Forwarded-For trust) is deferred per Decision #5

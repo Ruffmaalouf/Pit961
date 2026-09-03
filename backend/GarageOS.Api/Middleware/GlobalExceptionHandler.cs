@@ -92,6 +92,30 @@ public sealed class GlobalExceptionHandler(
             return true;
         }
 
+        // P2-WP3: an invalid Job.Status transition attempt (e.g. a skip-ahead transition, or
+        // a transition attempted from a terminal state) -- see
+        // InvalidJobStatusTransitionException's doc comment for why this is 400, not 403.
+        if (exception is InvalidJobStatusTransitionException invalidTransitionException)
+        {
+            logger.LogWarning(exception, "InvalidJobStatusTransitionException reached the global handler for {Method} {Path}: {From} -> {To}.",
+                httpContext.Request.Method, httpContext.Request.Path,
+                invalidTransitionException.FromStatus, invalidTransitionException.AttemptedStatus);
+
+            var invalidTransitionDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid job status transition.",
+                Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+                Instance = httpContext.Request.Path,
+            };
+            invalidTransitionDetails.Extensions["fromStatus"] = invalidTransitionException.FromStatus;
+            invalidTransitionDetails.Extensions["attemptedStatus"] = invalidTransitionException.AttemptedStatus;
+            httpContext.Response.StatusCode = invalidTransitionDetails.Status.Value;
+            await httpContext.Response.WriteAsJsonAsync(
+                invalidTransitionDetails, options: null, contentType: "application/problem+json", cancellationToken);
+            return true;
+        }
+
         logger.LogError(exception, "Unhandled exception processing {Method} {Path}",
             httpContext.Request.Method, httpContext.Request.Path);
 

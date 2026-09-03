@@ -14,9 +14,26 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(j => j.Status).HasMaxLength(32).IsRequired();
         builder.Property(j => j.Source).IsRequired();
 
+        // P2-WP3: constraint swap to DECISIONS.md #12 Decision #1's ratified vocabulary --
+        // the original constraint was written against an earlier, informal status set and
+        // was never updated when Decision #1 was ratified. See MigrateJobStatusVocabulary
+        // for the corresponding migration (drop+add, no data backfill needed -- no
+        // live/seeded row uses any value outside the intersection of the old and new
+        // vocabularies).
         builder.ToTable(t => t.HasCheckConstraint("ck_jobs_status",
-            "status IN ('checked_in','diagnosing','waiting_approval','waiting_parts'," +
-            "'ready_to_repair','repairing','qc','ready','delivered','cancelled')"));
+            "status IN ('checked_in','estimate_pending','awaiting_approval','approved'," +
+            "'in_progress','completed','invoiced','closed','cancelled','deleted')"));
+
+        // P2-WP3: Postgres's built-in xmin system column as an EF Core concurrency token --
+        // the Floor Board is the first genuinely concurrent-multi-actor-on-one-row UX in
+        // this codebase (e.g. a mechanic and a manager transitioning the same Job from
+        // different devices at the same instant). `dotnet ef migrations add` still
+        // scaffolds a spurious AddColumn<uint>("xmin", ...) for this shadow property
+        // (Postgres system columns aren't special-cased by the migrations differ) -- that
+        // operation is hand-removed from MigrateJobStatusVocabulary's Up/Down (see that
+        // file's remarks): "xmin" already exists on every table and Postgres rejects
+        // adding a column by that name outright.
+        builder.Property<uint>("xmin").IsRowVersion();
 
         builder.HasOne<Garage>().WithMany().HasForeignKey(j => j.GarageId).OnDelete(DeleteBehavior.NoAction);
         builder.HasOne<Customer>().WithMany().HasForeignKey(j => j.CustomerId).OnDelete(DeleteBehavior.NoAction);
