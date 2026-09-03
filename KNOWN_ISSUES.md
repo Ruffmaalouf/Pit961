@@ -224,22 +224,65 @@ alone remains sufficient once a real, attacker-influenced claims source exists.
 
 ---
 
-### KI-8 — Bypass-protection regex has a coverage gap for `DbContext.Add(object)` overloads (MEDIUM, tracked)
+### KI-8 — Bypass-protection regex has a coverage gap for `DbContext.Add(object)` overloads (MEDIUM, **CLOSED** in P2-WP1)
 
 **Severity:** MEDIUM (non-gating; flagged by QA Automation Engineer during WP-3B's QA gate).
-**Affects:** WP-3B (`GarageOS.Tests.Unit/Architecture/GarageInsertBoundaryTests.cs`).
-**Description:** The source-scanning bypass-protection test's regex patterns
-(`Garages\.Add(Range)?\(`, `Set<Garage>().Add`, `INSERT INTO garages`) correctly catch
-today's known bypass shapes, but would not catch a hypothetical future call written as
-`_db.Add(new Garage {...})` or `_db.AddRange(garage, otherEntity)` (EF Core's non-generic
-`DbContext.Add(object)`/`AddRange(IEnumerable<object>)` overloads) or
-`context.Entry(x).State = EntityState.Added`. No such violation exists today (verified
-by direct grep across the whole backend) — the DB-level partial unique index
-(`garages_account_active_idx`) remains the airtight backstop regardless of call-site
-shape. This is a test/code-review-aid gap, not a live defect.
-**Status:** Tracked. Recommended follow-up: widen `GarageInsertBoundaryTests`'
-`BypassPatterns` to include the generic `.Add(Async)?\(\s*new\s+Garage\b` /
-`.AddRange\(...Garage...\)` shapes. Low priority — do when next touching that test file.
+**Affects:** WP-3B / P2-WP1 (`GarageOS.Tests.Unit/Architecture/GarageInsertBoundaryTests.cs`).
+**Original description:** The source-scanning bypass-protection test's regex patterns
+(`Garages\.Add(Range)?\(`, `Set<Garage>().Add`, `INSERT INTO garages`) correctly caught
+the known bypass shapes at the time, but would not catch `_db.Add(new Garage {...})` or
+`_db.AddRange(garage, otherEntity)` (EF Core's non-generic `DbContext.Add(object)`/
+`AddRange(IEnumerable<object>)` overloads) or `context.Entry(x).State = EntityState.Added`.
+**Fix (P2-WP1, Backend Engineer; QA Automation Engineer + Security Reviewer gates, two
+rounds):** `GarageInsertBoundaryTests.cs` now has (1) two additional direct patterns for
+the inline-`new Garage` shape of `Add`/`AddRange`/`AddAsync` and
+`Entry(...).State = EntityState.Added`; (2) an indirect variable-name cross-reference
+(`HasIndirectGarageInsert`) that tracks every local/field declared with an explicit
+`Garage`/`Garage?` type OR a `var name = new Garage` initializer, then checks whether any
+tracked name is later passed as the sole argument to `Add`/`AddAsync`/`AddRange`, as one of
+several arguments to `AddRange`/`AddRangeAsync`, or as the receiver of
+`Entry(...).State = EntityState.Added`; (3) both the direct and indirect checks now run
+against `SourceScanUtilities.MaskLiteralsAndComments()` output (the same shared helper
+`EstimateMutationBoundaryTests` uses), not raw file text.
+**Round 1 → Round 2:** QA Automation Engineer's round-1 gate review returned a BLOCKER —
+the `var g = new Garage {...}; db.Add(g);` shape (this codebase's dominant declaration
+style) was not caught, since only explicitly-`Garage`-typed declarations were tracked.
+Security Reviewer's parallel round-1 review (PASS, no CRITICAL/HIGH) separately flagged a
+MEDIUM: multi-argument `AddRange(garageVar, otherVar)` was missed by the sole-argument
+check. Round 2 added the `var`-declaration pattern and a whole-argument-list `AddRange`
+scan closing both. QA Automation Engineer re-reviewed round 2 and returned **PASS** — the
+round-1 BLOCKER is confirmed closed by fixture proof, no regression found, two remaining
+non-blocking edge cases noted below.
+**Proof:** full 47-test unit suite passes clean with the fix and no fixture present (zero
+false positives against the current codebase, both rounds). Six isolated one-statement
+bypass fixtures were each added individually, confirmed to make the test FAIL and be
+listed as a violation, then deleted with the suite re-confirmed clean: direct inline-new-
+Garage `Add`; indirect explicitly-typed-variable `Add`; indirect explicitly-typed-variable
+`Entry`+`EntityState.Added`; indirect `var`-declared-variable `Add`; direct inline-new-
+Garage `Entry`+`EntityState.Added`; multi-argument `AddRange` with a Garage-typed
+identifier alongside another argument. None of the fixture files were committed (confirmed
+via `git status` on the working tree before commit).
+**Disclosed residual limitations (heuristic text scanner, not a C# type resolver, same
+class as KI-16):** does not follow a Garage-typed value through a method parameter, a
+cast, a collection/array element, or a property access; a multi-declarator statement
+(`Garage g1 = ..., g2 = ...;`) only registers the first name; variable-name tracking is
+file-scoped, not method/block-scoped (no false positive triggered by any code that exists
+today); fully-qualified instantiation (`new GarageOS.Domain.Garage()`) and a Garage-typed
+field assigned outside its declaration statement are untracked (noted by QA Automation
+Engineer's round-2 re-review, non-blocking, logged as optional low-priority follow-up, not
+a condition of this closure). This remains a CI-time compensating/coding-standard control,
+not a runtime enforcement mechanism (Security Reviewer MEDIUM): it has no visibility into
+raw ADO.NET/Dapper inserts, `ExecuteSqlRaw`/`ExecuteSqlInterpolated`, bulk-insert
+libraries, or reflection/dynamic/expression-tree-built inserts. The DB-level partial
+unique index (`garages_account_active_idx`) prevents a *second* active garage per account
+but does not by itself prevent an unauthorized *first* garage insert via one of those
+uncovered paths — it is a duplicate-prevention control, not a general backstop for "only
+AccountProvisioningService may create a Garage." Runtime enforcement of that invariant
+(e.g. a distinguished DB role/trigger) is optional future-hardening, out of KI-8's
+ticketed scope.
+**Status:** **CLOSED.** QA gate: PASS (round 2, after a round-1 BLOCKER was fixed and
+re-verified). Security gate: PASS (no CRITICAL/HIGH; MEDIUM findings logged above as
+disclosed limitations, non-blocking).
 **Owner input needed?** No.
 
 ---
