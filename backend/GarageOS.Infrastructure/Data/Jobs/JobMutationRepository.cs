@@ -78,7 +78,19 @@ public sealed class JobMutationRepository(AppDbContext db) : IJobMutationReposit
         Guid jobId, string fromStatus, string toStatus, Guid actorId, string actorRole,
         string? reason, CancellationToken ct = default)
     {
-        var job = await db.Jobs.SingleAsync(j => j.Id == jobId, ct); // tracked -- this IS the write path
+        // QA-review finding (P2-WP3 gate, round 2): SingleAsync throws InvalidOperationException
+        // ("Sequence contains no elements") -- not caught anywhere -- when a concurrent
+        // transition already soft-deleted this job (checked_in -> deleted is legal), since
+        // AppDbContext's default query filter then excludes the row entirely. That degraded
+        // to an unhandled 500 instead of the intended, tested 409 Conflict every other
+        // terminal-state race gets. SingleOrDefaultAsync + an explicit null check folds this
+        // into the SAME compare-and-swap conflict path below, rather than needing a second
+        // special case.
+        var job = await db.Jobs.SingleOrDefaultAsync(j => j.Id == jobId, ct); // tracked -- this IS the write path
+        if (job is null)
+        {
+            throw new JobConcurrencyConflictException(jobId);
+        }
 
         // QA/Security-review finding (P2-WP3 gate, both independently caught it): a bare
         // xmin concurrency token does NOT by itself catch the race JobStatusService.

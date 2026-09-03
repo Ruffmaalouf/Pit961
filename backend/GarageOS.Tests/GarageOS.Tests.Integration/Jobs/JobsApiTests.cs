@@ -322,6 +322,53 @@ public class JobsApiTests(IntegrationTestFixture fixture)
     }
 
     [Fact]
+    public async Task TransitionStatusAsync_ConcurrentSoftDelete_ThrowsConcurrencyConflict_NotUnhandledException()
+    {
+        // QA-review finding (P2-WP3 gate, round 2): a real Postgres reproduction of the edge
+        // case plain xmin/status compare-and-swap didn't fully cover -- SingleAsync inside
+        // TransitionStatusAsync threw an unhandled InvalidOperationException ("Sequence
+        // contains no elements"), not DbUpdateConcurrencyException, when a concurrent
+        // transition already soft-deleted the row, because AppDbContext's default query
+        // filter excludes DeletedAt-set rows from db.Jobs entirely. That degraded to a bare
+        // 500 instead of the same clean 409 Conflict every other terminal-state race gets.
+        // This proves the SingleOrDefaultAsync + explicit-null-check fix folds the missing-row
+        // case into the same JobConcurrencyConflictException path.
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, userId) = await SeedAuthenticatedUserAsync(role: "owner");
+        var customer = await ResourceSeedHelpers.SeedCustomerAsync(fixture, garageId);
+        var vehicle = await ResourceSeedHelpers.SeedVehicleAsync(fixture, garageId, customer.Id);
+        var client = fixture.CreateClient();
+        var job = await CreateJobViaApiAsync(client, token, customer.Id, vehicle.Id);
+
+        // Actor A's transition genuinely commits checked_in -> deleted (a legal edge) first --
+        // this is what makes the row vanish from every default-filtered db.Jobs query,
+        // including TransitionStatusAsync's own re-fetch below.
+        var deleteRequest = Authorized(HttpMethod.Post, $"/api/v1/jobs/{job.Id}/status-transitions", token);
+        deleteRequest.Content = JsonContent.Create(new TransitionJobStatusRequest(JobStatuses.Deleted, "duplicate intake"));
+        var deleteResponse = await client.SendAsync(deleteRequest);
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+
+        // Actor B's transition was validated against the STALE pre-delete status (checked_in),
+        // driven directly against a real JobMutationRepository (real Postgres, real query
+        // filter) -- same construction pattern as the stale-from-status test above, since
+        // forcing two real HTTP requests into this exact interleaving isn't reliably
+        // reproducible.
+        await using var dbForStaleWrite = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var mutationRepo = new GarageOS.Infrastructure.Data.Jobs.JobMutationRepository(dbForStaleWrite);
+        await Assert.ThrowsAsync<JobConcurrencyConflictException>(() => mutationRepo.TransitionStatusAsync(
+            job.Id, fromStatus: JobStatuses.CheckedIn, toStatus: JobStatuses.EstimatePending,
+            actorId: userId, actorRole: "owner", reason: null));
+
+        // The job must still be soft-deleted (A's real commit) -- and only A's one history
+        // row exists, never a second one from the rejected B.
+        await using var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var current = await db.Jobs.IgnoreQueryFilters().SingleAsync(j => j.Id == job.Id);
+        Assert.Equal(JobStatuses.Deleted, current.Status);
+        Assert.NotNull(current.DeletedAt);
+        Assert.Equal(1, await db.JobHistory.CountAsync(h => h.JobId == job.Id));
+    }
+
+    [Fact]
     public async Task NoBearerToken_ReturnsUnauthorized()
     {
         await fixture.ResetDatabaseAsync();
