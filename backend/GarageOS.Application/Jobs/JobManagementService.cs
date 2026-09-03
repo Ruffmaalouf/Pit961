@@ -16,7 +16,7 @@ public sealed record UpdateJobIntakeFields(
     string? CustomerComplaint, string? AdvisorNotes, DateTimeOffset? PromisedAt,
     bool CustomerWaiting, bool Overnight, string? OvernightNote);
 
-public enum JobMutationOutcome { Ok, CustomerNotFound, VehicleNotFound }
+public enum JobMutationOutcome { Ok, CustomerNotFound, VehicleNotFound, ParentJobNotFound }
 
 public sealed class JobMutationResult
 {
@@ -32,6 +32,7 @@ public sealed class JobMutationResult
     public static JobMutationResult Ok(Job job) => new(JobMutationOutcome.Ok, job);
     public static JobMutationResult CustomerNotFound() => new(JobMutationOutcome.CustomerNotFound, null);
     public static JobMutationResult VehicleNotFound() => new(JobMutationOutcome.VehicleNotFound, null);
+    public static JobMutationResult ParentJobNotFound() => new(JobMutationOutcome.ParentJobNotFound, null);
 }
 
 /// <summary>
@@ -69,6 +70,26 @@ public sealed class JobManagementService(
         // cross-tenant fields.CustomerId/VehicleId would already have returned null above.
         TenantGuard.EnsureOwned(customer.GarageId, currentTenant);
         TenantGuard.EnsureOwned(vehicle.GarageId, currentTenant);
+
+        // Security-review finding (P2-WP3 gate): ParentJobId is client-suppliable
+        // (CreateJobRequest.ParentJobId) and was being persisted with NO ownership check at
+        // all -- unlike CustomerId/VehicleId above. A caller could supply another tenant's
+        // real Job GUID and it would insert successfully (the FK has no garage scoping),
+        // creating a narrow cross-tenant existence oracle and violating this WP's own stated
+        // "denormalized garage_id integrity" invariant for parent references. Same
+        // find-then-EnsureOwned pattern as Customer/Vehicle above; a supplied ParentJobId
+        // that doesn't resolve to an owned Job is rejected outright rather than silently
+        // persisted or treated as if it didn't exist.
+        if (fields.ParentJobId is { } parentJobId)
+        {
+            var parentJob = await jobsRead.FindByIdAsync(parentJobId, ct);
+            if (parentJob is null)
+            {
+                return JobMutationResult.ParentJobNotFound();
+            }
+
+            TenantGuard.EnsureOwned(parentJob.GarageId, currentTenant);
+        }
 
         var job = new Job
         {

@@ -79,6 +79,25 @@ public sealed class JobMutationRepository(AppDbContext db) : IJobMutationReposit
         string? reason, CancellationToken ct = default)
     {
         var job = await db.Jobs.SingleAsync(j => j.Id == jobId, ct); // tracked -- this IS the write path
+
+        // QA/Security-review finding (P2-WP3 gate, both independently caught it): a bare
+        // xmin concurrency token does NOT by itself catch the race JobStatusService.
+        // TransitionAsync's read-check-write sequence is exposed to, because THIS re-fetch
+        // happens strictly after that earlier validation read -- xmin only ever compares
+        // against whatever this method's own SingleAsync just loaded, which trivially
+        // matches itself. Without this explicit compare-and-swap, a second, differently
+        // stale-validated transition could silently overwrite a status a concurrent
+        // transition already changed to something incompatible (e.g. resurrecting a
+        // just-cancelled job, or moving an already-invoiced job to cancelled). Comparing
+        // the freshly-read job.Status against the fromStatus JobStatusService validated
+        // against is what actually makes this a compare-and-swap -- xmin remains a second,
+        // belt-and-suspenders layer for the (now much narrower) window between this check
+        // and SaveChangesAsync below.
+        if (job.Status != fromStatus)
+        {
+            throw new JobConcurrencyConflictException(jobId);
+        }
+
         job.Status = toStatus;
         job.UpdatedAt = DateTimeOffset.UtcNow;
 

@@ -48,6 +48,14 @@ public class JobMutationBoundaryTests
     private static readonly Regex ExecuteUpdateAsyncPattern =
         new(@"\.\s*ExecuteUpdateAsync\s*\(", RegexOptions.Compiled);
 
+    // Security-review finding (P2-WP3 gate): the original scan covered ExecuteUpdateAsync
+    // bulk updates but not ExecuteDeleteAsync bulk deletes. Job is meant to be exclusively
+    // soft-deleted via TransitionStatusAsync (DeletedAt/DeletedBy, with an audit trail) --
+    // never hard-deleted -- so a Jobs/JobHistory-rooted ExecuteDeleteAsync anywhere outside
+    // the allow-listed file is exactly as much of a bypass as ExecuteUpdateAsync.
+    private static readonly Regex ExecuteDeleteAsyncPattern =
+        new(@"\.\s*ExecuteDeleteAsync\s*\(", RegexOptions.Compiled);
+
     private static readonly Regex JobsAccessPattern =
         new(@"\bJobs\s*\.|\bSet<\s*Job\s*>\s*\(\s*\)", RegexOptions.Compiled);
 
@@ -97,6 +105,10 @@ public class JobMutationBoundaryTests
                 if ((touchesJobs || touchesHistory) && ExecuteUpdateAsyncPattern.IsMatch(statement))
                 {
                     violations.Add($"{normalized} ({(touchesJobs ? "Jobs" : "JobHistory")}-rooted ExecuteUpdateAsync bulk update)");
+                }
+                if ((touchesJobs || touchesHistory) && ExecuteDeleteAsyncPattern.IsMatch(statement))
+                {
+                    violations.Add($"{normalized} ({(touchesJobs ? "Jobs" : "JobHistory")}-rooted ExecuteDeleteAsync bulk delete)");
                 }
             }
         }

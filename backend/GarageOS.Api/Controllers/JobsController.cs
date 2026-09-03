@@ -37,6 +37,7 @@ public sealed class JobsController(
         {
             JobMutationOutcome.CustomerNotFound => NotFound(new { error = "Customer not found." }),
             JobMutationOutcome.VehicleNotFound => NotFound(new { error = "Vehicle not found." }),
+            JobMutationOutcome.ParentJobNotFound => NotFound(new { error = "Parent job not found." }),
             _ => CreatedAtAction(nameof(GetById), new { id = result.Job!.Id }, ToDto(result.Job!)),
         };
     }
