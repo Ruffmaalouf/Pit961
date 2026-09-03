@@ -6,6 +6,8 @@ using GarageOS.Application.Abstractions;
 using GarageOS.Application.Auth;
 using GarageOS.Application.Common;
 using GarageOS.Application.Estimates;
+using GarageOS.Application.Customers;
+using GarageOS.Application.Vehicles;
 using GarageOS.Application.Configuration;
 using GarageOS.Infrastructure.BackgroundJobs;
 using GarageOS.Infrastructure.Data;
@@ -13,6 +15,8 @@ using GarageOS.Infrastructure.Data.Auth;
 using GarageOS.Infrastructure.Data.Platform;
 using GarageOS.Infrastructure.Data.Provisioning;
 using GarageOS.Infrastructure.Data.Estimates;
+using GarageOS.Infrastructure.Data.Customers;
+using GarageOS.Infrastructure.Data.Vehicles;
 using GarageOS.Infrastructure.Data.Seed;
 using GarageOS.Infrastructure.Email;
 using GarageOS.Infrastructure.Security;
@@ -206,6 +210,17 @@ builder.Services.AddScoped<IBusinessRuleAuthorizer, AspNetBusinessRuleAuthorizer
 builder.Services.AddScoped<IEstimateMutationRepository, EstimateMutationRepository>();
 builder.Services.AddScoped<EstimateDiscountService>();
 builder.Services.AddScoped<EstimateApprovalService>();
+
+// P2-WP2 -- Customer & Vehicle vertical slice. Query repositories carry no
+// single-caller restriction (see ICustomerQueryRepository/IVehicleQueryRepository
+// remarks); mutation repositories are the sole authoritative write surface for their
+// entity, enforced by CustomerMutationBoundaryTests/VehicleMutationBoundaryTests.
+builder.Services.AddScoped<ICustomerMutationRepository, CustomerMutationRepository>();
+builder.Services.AddScoped<ICustomerQueryRepository, CustomerQueryRepository>();
+builder.Services.AddScoped<IVehicleMutationRepository, VehicleMutationRepository>();
+builder.Services.AddScoped<IVehicleQueryRepository, VehicleQueryRepository>();
+builder.Services.AddScoped<CustomerManagementService>();
+builder.Services.AddScoped<VehicleManagementService>();
 
 // Sliding-window rate limiters, partitioned by remote IP (WP-4 brief §15). Real-IP
 // resolution behind a reverse proxy (X-Forwarded-For trust) is deferred per Decision #5

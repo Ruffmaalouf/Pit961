@@ -2,7 +2,7 @@ using GarageOS.Domain.Common;
 
 namespace GarageOS.Domain.Entities;
 
-public class Vehicle : ITenantOwned
+public class Vehicle : ITenantOwned, ISoftDeletable
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid GarageId { get; set; }
@@ -20,6 +20,14 @@ public class Vehicle : ITenantOwned
     public string? Drivetrain { get; set; }
     public string? FuelType { get; set; }
     public int? CurrentMileage { get; set; }
+
+    /// <summary>P2-WP2 / DECISIONS.md #12 Decision #4: no hard-delete path for Vehicle,
+    /// ever. See Customer.DeletedAt remarks -- same mechanism, same reasoning.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Who removed this record. See Customer.DeletedBy remarks.</summary>
+    public Guid? DeletedBy { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

@@ -25,7 +25,7 @@ public static class ResourceSeedHelpers
         {
             GarageId = garageId,
             CustomerId = customerId,
-            PlateNumber = $"T{Guid.NewGuid():N}"[..8],
+            PlateNumber = $"T{Guid.NewGuid():N}"[..8].ToUpperInvariant(), // P2-WP2: kept normalized (uppercase) -- real writes always normalize plates before storing (VehicleManagementService), so seeded fixtures should reflect realistic stored data too.
             Make = "Seed",
             Model = "Vehicle",
         };

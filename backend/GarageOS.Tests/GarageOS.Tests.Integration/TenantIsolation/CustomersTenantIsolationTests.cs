@@ -80,4 +80,90 @@ public class CustomersTenantIsolationTests(IntegrationTestFixture fixture)
 
         Assert.Throws<TenantOwnershipException>(() => TenantGuard.EnsureOwned(inB.GarageId, currentTenant));
     }
+
+    // --- P2-WP2: soft-delete additions (DECISIONS.md #12 Decision #4) -----------------
+
+    [Fact]
+    public async Task SoftDeletedCustomer_ExcludedFromDefaultQuery()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customer = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantA.Garage.Id);
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id }))
+        {
+            var tracked = await db.Customers.SingleAsync(c => c.Id == customer.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = tenants.TenantA.Owner.Id;
+            await db.SaveChangesAsync();
+        }
+
+        await using var dbAsA = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var result = await dbAsA.Customers.FirstOrDefaultAsync(c => c.Id == customer.Id);
+        var count = await dbAsA.Customers.CountAsync();
+
+        Assert.Null(result);
+        Assert.Equal(0, count);
+    }
+
+    [Fact]
+    public async Task SoftDeletedCustomer_ResolvableViaIgnoreQueryFilters_WhenTenantMatches()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customer = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantA.Garage.Id);
+        var deletedByUserId = tenants.TenantA.Owner.Id;
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id }))
+        {
+            var tracked = await db.Customers.SingleAsync(c => c.Id == customer.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = deletedByUserId;
+            await db.SaveChangesAsync();
+        }
+
+        // The historical-composition pattern every read path with a legitimate reason to
+        // see a soft-deleted row must use (ICustomerQueryRepository.FindByIdIncludingDeletedAsync's
+        // exact shape) -- IgnoreQueryFilters() disables BOTH the tenant and soft-delete
+        // halves of the composed filter at once, so the tenant check is re-applied by hand.
+        await using var dbAsA = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var result = await dbAsA.Customers.IgnoreQueryFilters()
+            .Where(c => c.Id == customer.Id && c.GarageId == tenants.TenantA.Garage.Id)
+            .SingleOrDefaultAsync();
+
+        Assert.NotNull(result);
+        Assert.NotNull(result!.DeletedAt);
+        Assert.Equal(deletedByUserId, result.DeletedBy);
+    }
+
+    [Fact]
+    public async Task SoftDeletedCustomer_NotResolvableViaIgnoreQueryFilters_WhenCrossTenant()
+    {
+        await fixture.ResetDatabaseAsync();
+        var tenants = new TwoTenantFixture();
+        await tenants.SeedAsync(fixture);
+        var customerInB = await ResourceSeedHelpers.SeedCustomerAsync(fixture, tenants.TenantB.Garage.Id);
+
+        await using (var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantB.Garage.Id }))
+        {
+            var tracked = await db.Customers.SingleAsync(c => c.Id == customerInB.Id);
+            tracked.DeletedAt = DateTimeOffset.UtcNow;
+            tracked.DeletedBy = tenants.TenantB.Owner.Id;
+            await db.SaveChangesAsync();
+        }
+
+        // This is the specific regression the historical-composition pattern is worried
+        // about (ICustomerQueryRepository.FindByIdIncludingDeletedAsync's remarks): a
+        // Garage A caller must NOT be able to use the IgnoreQueryFilters() path to read
+        // Garage B's soft-deleted customer, even though that path bypasses the normal
+        // filter -- the hand-re-applied GarageId check must still hold.
+        await using var dbAsA = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = tenants.TenantA.Garage.Id });
+        var result = await dbAsA.Customers.IgnoreQueryFilters()
+            .Where(c => c.Id == customerInB.Id && c.GarageId == tenants.TenantA.Garage.Id)
+            .SingleOrDefaultAsync();
+
+        Assert.Null(result);
+    }
 }
