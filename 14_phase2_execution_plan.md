@@ -1,6 +1,6 @@
 # 14 — PIT961 Phase 2 Execution Plan
 
-Status: **PROPOSED — Awaiting Owner Approval** (planning/scoping document only; does not authorize implementation)
+Status: **APPROVED — PHASE 2 IMPLEMENTATION AUTHORIZED** (Owner approval 2026-09-03; see DECISIONS.md #12)
 Prepared by: Company Dispatcher, coordinating Product Director, Product Manager, Business Analyst, Design Lead, CTO, Technical Architect, Database Engineer, QA Lead, Security Reviewer
 Date: 2026-09-02
 Supersedes nothing. Extends `13_phase1_execution_plan.md` / Phase 1 (ACCEPTED, see `FINAL_PHASE1_REPORT.md`). Governed by `DECISIONS.md` (all 11 entries remain binding and are not reopened by this document).
@@ -309,6 +309,9 @@ Phase 2 is accepted only when all twelve work packages meet their individual Def
 ---
 
 # Phase 2 Owner Decisions Required
+
+**RATIFIED 2026-09-03 -- see DECISIONS.md #12 for the full binding text of all 8 decisions.**
+All eight rows below were decided per the Owner's stated "Product recommendation" column in every case (options (a) throughout), with no amendment. This table is left otherwise unedited as the historical record of what was proposed; DECISIONS.md #12 is the authoritative decided text.
 
 | # | Question | Options | Product recommendation | Technical impact | Business impact | Blocks implementation? |
 |---|---|---|---|---|---|---|
