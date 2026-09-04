@@ -4,8 +4,8 @@ using GarageOS.Application.Common;
 namespace GarageOS.Application.Estimates;
 
 /// <summary>
-/// WP-5 brief §4/§7. The single authoritative application-service mutation path for
-/// Estimate.DiscountAmount/Total. No other code in the solution may call
+/// WP-5 brief §4/§7, extended P2-WP4. The single authoritative application-service mutation
+/// path for Estimate.DiscountAmount/Total. No other code in the solution may call
 /// IEstimateMutationRepository.UpdateDiscountAsync -- guarded by
 /// EstimateMutationBoundaryTests.
 /// </summary>
@@ -33,6 +33,16 @@ public sealed class EstimateDiscountService(
         // any write, matching TenantGuard.EnsureOwned's existing role elsewhere.
         TenantGuard.EnsureOwned(estimate.GarageId, currentTenant);
 
+        // P2-WP4, Owner Decision #3: an approved estimate is never silently edited in
+        // place -- a superseded revision (created once a re-quote happens) is immutable.
+        // Same check EstimateApprovalService.RouteStatusAsync/ClearOwnerApprovalAsync and
+        // EstimateManagementService now all share.
+        if (estimate.Status == "superseded")
+        {
+            return ApplyDiscountResult.Failure(
+                "This estimate has been superseded by a newer revision and can no longer be changed.");
+        }
+
         var outcome = await businessRuleAuthorizer.AuthorizeDiscountAsync(estimate.GarageId, discountPercent, ct);
         if (!outcome.Succeeded)
         {
@@ -45,7 +55,18 @@ public sealed class EstimateDiscountService(
         var discountAmount = Math.Round(estimate.Subtotal * discountPercent / 100m, 2);
         var newTotal = estimate.Subtotal - discountAmount + estimate.TaxAmount;
 
-        await estimates.UpdateDiscountAsync(estimateId, discountAmount, newTotal, ct);
+        try
+        {
+            await estimates.UpdateDiscountAsync(estimateId, discountAmount, newTotal, ct);
+        }
+        catch (EstimateConcurrencyConflictException)
+        {
+            // The row changed between FindByIdAsync's read and UpdateDiscountAsync's write
+            // -- e.g. someone else's discount or a revision race landed first. Tell the
+            // caller to re-fetch and retry rather than silently applying a stale discount
+            // against numbers that may no longer be current.
+            return ApplyDiscountResult.Conflict();
+        }
 
         return ApplyDiscountResult.Ok(discountAmount, newTotal);
     }
@@ -60,6 +81,7 @@ public sealed record ApplyDiscountResult
     /// Denied because a property and the static Denied(...) factory below cannot share a
     /// name in C#.
     public bool IsDenied { get; init; }
+    public bool IsConflict { get; init; }
     public string? ErrorMessage { get; init; }
     public decimal? DiscountAmount { get; init; }
     public decimal? Total { get; init; }
@@ -72,4 +94,11 @@ public sealed record ApplyDiscountResult
 
     public static ApplyDiscountResult Failure(string reason) => new()
     { Success = false, IsDenied = false, ErrorMessage = reason };
+
+    public static ApplyDiscountResult Conflict() => new()
+    {
+        Success = false,
+        IsConflict = true,
+        ErrorMessage = "This estimate was updated by someone else. Please refresh and try again.",
+    };
 }

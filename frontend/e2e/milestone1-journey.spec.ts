@@ -100,8 +100,13 @@ test.describe('Milestone 1 — real Customer -> Vehicle -> Job -> Floor journey'
     // --- Real server-generated Job number ------------------------------
     await expect(page).toHaveURL(new RegExp(`/jobs/${createdJob.id}$`));
     expect(createdJob.jobNumber).toMatch(/^J-\d+$/);
-    await expect(page.getByText(createdJob.jobNumber)).toBeVisible();
-    await expect(page.getByText('Checked In')).toBeVisible();
+    // Scoped to the Job Detail panel: the header breadcrumb also renders the
+    // job number (e.g. "J-000002 · TOYOTA COROLLA"), so an unscoped
+    // getByText(jobNumber) is a substring match against both and trips
+    // Playwright's strict mode once the crumb has rendered.
+    const jobDetail = page.getByTestId('job-detail');
+    await expect(jobDetail.getByText(createdJob.jobNumber)).toBeVisible();
+    await expect(jobDetail.getByText('Checked In')).toBeVisible();
 
     // --- Floor: the job is really there, no seeded/fake data -----------
     await page.getByTestId('nav-item-floor').click();

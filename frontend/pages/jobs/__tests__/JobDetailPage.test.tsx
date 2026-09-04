@@ -14,6 +14,12 @@ vi.mock('@/features/jobs/api', () => ({
   getJobHistory: vi.fn(),
   transitionJobStatus: vi.fn(),
 }));
+// EstimateSection (P2-WP4) is now mounted inside JobDetailPage — stub its
+// transport so these Job-focused tests stay hermetic. EstimateSection's own
+// behavior is covered by features/estimates/__tests__/EstimateSection.test.tsx.
+vi.mock('@/features/estimates/api', () => ({
+  listEstimatesByJob: vi.fn().mockResolvedValue([]),
+}));
 
 import * as customersApi from '@/features/customers/api';
 import * as jobsApi from '@/features/jobs/api';

@@ -20,6 +20,16 @@ public sealed class EstimateConfiguration : IEntityTypeConfiguration<Estimate>
         builder.ToTable(t => t.HasCheckConstraint("ck_estimates_status",
             "status IN ('draft','sent','pending_owner_approval','approved','partially_approved','rejected','superseded')"));
 
+        // P2-WP4: Postgres's built-in xmin system column as an EF Core concurrency token,
+        // same pattern/rationale as JobConfiguration.cs -- Estimate now has genuinely
+        // concurrent-multi-actor writes (discount application, approval routing/clearing,
+        // and revision creation racing each other on the same row). `dotnet ef migrations
+        // add` still scaffolds a spurious AddColumn<uint>("xmin", ...) for this shadow
+        // property; that operation must be hand-removed from the generated migration's
+        // Up/Down, exactly as JobConfiguration.cs's remarks describe -- "xmin" already
+        // exists on every table and Postgres rejects adding a column by that name.
+        builder.Property<uint>("xmin").IsRowVersion();
+
         builder.HasOne<Garage>().WithMany().HasForeignKey(e => e.GarageId).OnDelete(DeleteBehavior.NoAction);
         builder.HasOne<Job>().WithMany().HasForeignKey(e => e.JobId).OnDelete(DeleteBehavior.NoAction);
         builder.HasOne<Estimate>().WithMany().HasForeignKey(e => e.ParentEstimateId).OnDelete(DeleteBehavior.NoAction);

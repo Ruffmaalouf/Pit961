@@ -212,6 +212,11 @@ builder.Services.AddScoped<IBusinessRuleAuthorizer, AspNetBusinessRuleAuthorizer
 builder.Services.AddScoped<IEstimateMutationRepository, EstimateMutationRepository>();
 builder.Services.AddScoped<EstimateDiscountService>();
 builder.Services.AddScoped<EstimateApprovalService>();
+// P2-WP4 -- Estimate/Discount/Approval vertical slice. EstimateManagementService depends
+// on IJobQueryRepository (registered below, in the P2-WP3 block) to validate a new
+// Estimate's JobId; ASP.NET Core's DI container resolves dependencies at request time, so
+// registration order across these two blocks does not matter.
+builder.Services.AddScoped<EstimateManagementService>();
 
 // P2-WP2 -- Customer & Vehicle vertical slice. Query repositories carry no
 // single-caller restriction (see ICustomerQueryRepository/IVehicleQueryRepository

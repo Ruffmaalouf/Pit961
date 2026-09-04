@@ -61,6 +61,19 @@ export const JOB_ENDPOINTS = {
   floorBoard: '/api/v1/jobs/floor-board',
 } as const;
 
+/** P2-WP4. All require the "GarageTenant" policy — always call with `auth: true`. */
+export const ESTIMATE_ENDPOINTS = {
+  create: '/api/v1/estimates',
+  byId: (id: string) => `/api/v1/estimates/${id}`,
+  byJob: (jobId: string) => `/api/v1/jobs/${jobId}/estimates`,
+  items: (id: string) => `/api/v1/estimates/${id}/items`,
+  discount: (id: string) => `/api/v1/estimates/${id}/discount`,
+  submit: (id: string) => `/api/v1/estimates/${id}/submit`,
+  clearOwnerApproval: (id: string) => `/api/v1/estimates/${id}/clear-owner-approval`,
+  customerApproval: (id: string) => `/api/v1/estimates/${id}/customer-approval`,
+  createRevision: (id: string) => `/api/v1/estimates/${id}/revisions`,
+} as const;
+
 /** Fallback copy used only when the server gave us no ProblemDetails title. */
 const GENERIC_ERROR_TITLE = 'Something went wrong. Please try again.';
 const NETWORK_ERROR_TITLE = 'Could not reach the server. Check your connection and try again.';
@@ -122,10 +135,20 @@ async function readProblemDetails(response: Response): Promise<ProblemDetails | 
 
 async function toApiError(response: Response): Promise<ApiError> {
   const problem = await readProblemDetails(response);
+  // Most controllers return ASP.NET Core ProblemDetails (`{ title: "..." }`,
+  // via GlobalExceptionHandler or an explicit `new ProblemDetails { Title = ... }`).
+  // A handful of ad-hoc action results (JobsController/EstimatesController's
+  // Conflict/BadRequest/StatusCode(403) responses) instead return a plain
+  // `{ error: "..." }` object — same server-authored, safe-to-display message,
+  // different field name. Fall back to that shape so those messages surface
+  // too, rather than silently collapsing to the generic fallback text.
+  const rawError = problem && typeof problem.error === 'string' ? problem.error : undefined;
   const title =
     typeof problem?.title === 'string' && problem.title.trim().length > 0
       ? problem.title
-      : GENERIC_ERROR_TITLE;
+      : rawError && rawError.trim().length > 0
+        ? rawError
+        : GENERIC_ERROR_TITLE;
 
   return new ApiError({
     status: typeof problem?.status === 'number' ? problem.status : response.status,

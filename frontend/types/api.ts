@@ -350,3 +350,106 @@ export const JOB_STATUS_UX_TRANSITIONS: Record<string, string[]> = {
   cancelled: ['deleted'],
   deleted: [],
 };
+
+/**
+ * P2-WP4 — Estimate/Money wire types. Casing matches ASP.NET Core's default
+ * camelCase serialisation of GarageOS.Api.Contracts.EstimateContracts, transcribed
+ * 1:1 — do not "tidy" them. Request shapes deliberately carry no Subtotal/Total/
+ * DiscountAmount/Status field: the backend computes/writes every authoritative
+ * value itself (EstimateManagementService/EstimateDiscountService/
+ * EstimateApprovalService) — the client only ever sends intent.
+ */
+
+export interface EstimateItemDto {
+  id: string;
+  type: string;
+  description: string;
+  partNumber: string | null;
+  quantity: number;
+  unitCost: number;
+  unitPrice: number;
+  approvalStatus: string;
+  sortOrder: number;
+}
+
+export interface EstimateDto {
+  id: string;
+  jobId: string;
+  type: string;
+  parentEstimateId: string | null;
+  revisionNumber: number;
+  status: string;
+  approvalMethod: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  sentAt: string | null;
+  subtotal: number;
+  taxAmount: number;
+  discountAmount: number;
+  total: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: EstimateItemDto[];
+}
+
+/** A line item as the client proposes it — no ApprovalStatus field: the
+ * backend always sets new/replaced items to "pending" itself. */
+export interface EstimateItemRequest {
+  type: string;
+  description: string;
+  partNumber: string | null;
+  quantity: number;
+  unitCost: number;
+  unitPrice: number;
+  sortOrder: number;
+}
+
+export interface CreateEstimateRequest {
+  jobId: string;
+  type: string;
+  notes: string | null;
+  items: EstimateItemRequest[];
+}
+
+export interface ReplaceEstimateItemsRequest {
+  items: EstimateItemRequest[];
+}
+
+/** Intent only — a percentage. The server computes and writes the
+ * authoritative DiscountAmount/Total from this; it never accepts either
+ * directly from the client. */
+export interface ApplyDiscountRequest {
+  discountPercent: number;
+}
+
+/** "decision" is one of approved / partially_approved / rejected — what the
+ * customer actually said, recorded entirely independently of Owner approval
+ * (see EstimatesController.RecordCustomerApproval / Owner Decision context). */
+export interface RecordCustomerApprovalRequest {
+  decision: string;
+  approvalMethod: string;
+  approvedByName: string | null;
+}
+
+/** Estimate.Status vocabulary (ck_estimates_status). Display-only — the
+ * backend remains the sole authority on which transitions are legal. */
+export const ESTIMATE_STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  pending_owner_approval: 'Pending Owner Approval',
+  approved: 'Customer Approved',
+  partially_approved: 'Partially Approved',
+  rejected: 'Customer Rejected',
+  superseded: 'Superseded',
+};
+
+/** UX-only picker of channels a customer's approval/decision came through —
+ * mirrors prototype.html's feed "channel: WhatsApp" annotation. Free text on
+ * the backend; this is just the set the UI offers. */
+export const ESTIMATE_APPROVAL_METHODS: { value: string; label: string }[] = [
+  { value: 'in_person', label: 'In person' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'email', label: 'Email' },
+];

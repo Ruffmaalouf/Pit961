@@ -10,6 +10,15 @@ export const SEEDED_DEV_USER = {
   password: 'DevSeed-Pass1!',
 } as const;
 
+/** Same seeded dev database, a manager-role account (all seeded users share
+ * DevelopmentSeeder's one dev password) — used only where a spec needs to
+ * prove real Manager-vs-Owner behavior through an actual browser login,
+ * e.g. the P2-WP4 discount-cap/clear-approval journey. */
+export const SEEDED_DEV_MANAGER = {
+  email: 'rima.haddad@performanceautogarage.example',
+  password: 'DevSeed-Pass1!',
+} as const;
+
 /**
  * Base URL of the backend the app under test is talking to. Used only to read
  * the branding config directly so the e2e assertions compare the UI against

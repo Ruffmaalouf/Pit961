@@ -41,12 +41,26 @@ public class EstimateDiscountServiceTests
         public bool UpdateDiscountCalled { get; private set; }
         public decimal? LastDiscountAmount { get; private set; }
         public decimal? LastTotal { get; private set; }
+        public bool ThrowConflictOnUpdateDiscount { get; set; }
 
         public Task<Estimate?> FindByIdAsync(Guid estimateId, CancellationToken ct = default) =>
             Task.FromResult(EstimateToReturn);
 
+        public Task<IReadOnlyList<Estimate>> ListByJobIdAsync(Guid jobId, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not used by EstimateDiscountService.");
+
+        public Task<IReadOnlyList<EstimateItem>> GetItemsAsync(Guid estimateId, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not used by EstimateDiscountService.");
+
+        public Task<Estimate> InsertAsync(Estimate estimate, IReadOnlyList<EstimateItem> items, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not used by EstimateDiscountService.");
+
         public Task UpdateDiscountAsync(Guid estimateId, decimal discountAmount, decimal total, CancellationToken ct = default)
         {
+            if (ThrowConflictOnUpdateDiscount)
+            {
+                throw new GarageOS.Application.Common.EstimateConcurrencyConflictException(estimateId);
+            }
             UpdateDiscountCalled = true;
             LastDiscountAmount = discountAmount;
             LastTotal = total;
@@ -54,6 +68,17 @@ public class EstimateDiscountServiceTests
         }
 
         public Task UpdateApprovalRoutingStatusAsync(Guid estimateId, string status, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not used by EstimateDiscountService.");
+
+        public Task<Estimate> ReplaceItemsAsync(Guid estimateId, IReadOnlyList<EstimateItem> items, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not used by EstimateDiscountService.");
+
+        public Task<Estimate> RecordCustomerApprovalAsync(
+            Guid estimateId, string status, string approvalMethod, string? approvedByName, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not used by EstimateDiscountService.");
+
+        public Task<Estimate> CreateRevisionAsync(
+            Guid parentEstimateId, IReadOnlyList<EstimateItem> carriedItems, CancellationToken ct = default) =>
             throw new InvalidOperationException("Not used by EstimateDiscountService.");
     }
 
@@ -162,5 +187,46 @@ public class EstimateDiscountServiceTests
         Assert.False(result.IsDenied);
         Assert.False(authorizer.DiscountAuthorizeCalled);
         Assert.False(repository.UpdateDiscountCalled);
+    }
+
+    [Fact]
+    public async Task SupersededEstimate_RejectsDiscount_NoWriteOccurs()
+    {
+        // P2-WP4, Owner Decision #3: a superseded revision is immutable.
+        var garageId = Guid.NewGuid();
+        var estimate = MakeEstimate(garageId);
+        estimate.Status = "superseded";
+        var repository = new FakeEstimateMutationRepository { EstimateToReturn = estimate };
+        var authorizer = new FakeBusinessRuleAuthorizer();
+        var currentTenant = new FakeCurrentTenant { GarageId = garageId };
+        var sut = new EstimateDiscountService(repository, authorizer, currentTenant);
+
+        var result = await sut.ApplyDiscountAsync(estimate.Id, 10m);
+
+        Assert.False(result.Success);
+        Assert.False(authorizer.DiscountAuthorizeCalled);
+        Assert.False(repository.UpdateDiscountCalled);
+    }
+
+    [Fact]
+    public async Task ConcurrentWriteRacesDiscount_ReturnsConflict_NotAnException()
+    {
+        // P2-WP4: same-Estimate concurrency -- a competing mutation must never be silently
+        // lost or crash the request; it must surface as a safe, reportable conflict.
+        var garageId = Guid.NewGuid();
+        var estimate = MakeEstimate(garageId);
+        var repository = new FakeEstimateMutationRepository
+        {
+            EstimateToReturn = estimate,
+            ThrowConflictOnUpdateDiscount = true,
+        };
+        var authorizer = new FakeBusinessRuleAuthorizer { DiscountOutcome = BusinessRuleAuthorizationOutcome.Success };
+        var currentTenant = new FakeCurrentTenant { GarageId = garageId };
+        var sut = new EstimateDiscountService(repository, authorizer, currentTenant);
+
+        var result = await sut.ApplyDiscountAsync(estimate.Id, 10m);
+
+        Assert.False(result.Success);
+        Assert.True(result.IsConflict);
     }
 }

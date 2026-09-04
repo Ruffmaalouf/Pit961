@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import * as customersApi from '@/features/customers/api';
+import { EstimateSection } from '@/features/estimates/EstimateSection';
 import * as jobsApi from '@/features/jobs/api';
 import { useCrumb } from '@/hooks/useCrumb';
 import { ApiError } from '@/services/apiClient';
@@ -234,6 +235,8 @@ export function JobDetailPage() {
             </div>
           </div>
         ) : null}
+
+        <EstimateSection jobId={job.id} />
       </div>
 
       <div className="sticky top-[70px] rounded-panel border border-border-subtle bg-surface-card p-4">
