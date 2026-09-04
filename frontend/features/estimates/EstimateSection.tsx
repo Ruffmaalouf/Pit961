@@ -357,7 +357,7 @@ export function EstimateSection({ jobId }: { jobId: string }) {
           ) : (
             <div>
               <ItemsTable items={active.items} />
-              {active.status !== 'superseded' ? (
+              {active.status === 'draft' ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -389,7 +389,7 @@ export function EstimateSection({ jobId }: { jobId: string }) {
               <span data-testid="estimate-total">{money(active.total)}</span>
             </div>
 
-            {active.status !== 'superseded' ? (
+            {active.status === 'draft' ? (
               <div className="mt-3 flex items-end gap-2">
                 <div className="flex-1">
                   <label htmlFor="discount-percent" className="font-mono text-[9.5px] tracking-wide text-text-muted-3">
@@ -449,54 +449,61 @@ export function EstimateSection({ jobId }: { jobId: string }) {
                 </p>
               ) : null}
 
-              <div className="mt-2.5 flex flex-wrap items-end gap-2">
-                <div>
-                  <label className="font-mono text-[9.5px] tracking-wide text-text-muted-3">DECISION</label>
-                  <Select
-                    className="mt-1 h-8 w-[150px]"
-                    value={customerDecision}
-                    onChange={(e) => setCustomerDecision(e.target.value)}
-                    data-testid="customer-decision-select"
+              {/* A customer decision only makes sense against a "sent" estimate (P2-WP4 QA
+                  gate B1 / Owner Decision #3) — not before it's been sent, not while it's
+                  waiting on the Owner, and never a second time over an already-recorded
+                  decision. A re-quote (Create New Revision) is how a changed decision gets
+                  reflected, not silently overwriting this one. */}
+              {active.status === 'sent' ? (
+                <div className="mt-2.5 flex flex-wrap items-end gap-2">
+                  <div>
+                    <label className="font-mono text-[9.5px] tracking-wide text-text-muted-3">DECISION</label>
+                    <Select
+                      className="mt-1 h-8 w-[150px]"
+                      value={customerDecision}
+                      onChange={(e) => setCustomerDecision(e.target.value)}
+                      data-testid="customer-decision-select"
+                    >
+                      <option value="approved">Approved</option>
+                      <option value="partially_approved">Partially Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="font-mono text-[9.5px] tracking-wide text-text-muted-3">CHANNEL</label>
+                    <Select
+                      className="mt-1 h-8 w-[130px]"
+                      value={customerMethod}
+                      onChange={(e) => setCustomerMethod(e.target.value)}
+                      data-testid="customer-method-select"
+                    >
+                      {ESTIMATE_APPROVAL_METHODS.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="font-mono text-[9.5px] tracking-wide text-text-muted-3">NAME (optional)</label>
+                    <Input
+                      className="mt-1 h-8"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      data-testid="customer-name-input"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === 'customer'}
+                    onClick={() => handleRecordCustomerApproval(active.id)}
+                    data-testid="record-customer-approval"
                   >
-                    <option value="approved">Approved</option>
-                    <option value="partially_approved">Partially Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </Select>
+                    {busy === 'customer' ? <Spinner /> : 'Record'}
+                  </Button>
                 </div>
-                <div>
-                  <label className="font-mono text-[9.5px] tracking-wide text-text-muted-3">CHANNEL</label>
-                  <Select
-                    className="mt-1 h-8 w-[130px]"
-                    value={customerMethod}
-                    onChange={(e) => setCustomerMethod(e.target.value)}
-                    data-testid="customer-method-select"
-                  >
-                    {ESTIMATE_APPROVAL_METHODS.map((m) => (
-                      <option key={m.value} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="flex-1">
-                  <label className="font-mono text-[9.5px] tracking-wide text-text-muted-3">NAME (optional)</label>
-                  <Input
-                    className="mt-1 h-8"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    data-testid="customer-name-input"
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy === 'customer'}
-                  onClick={() => handleRecordCustomerApproval(active.id)}
-                  data-testid="record-customer-approval"
-                >
-                  {busy === 'customer' ? <Spinner /> : 'Record'}
-                </Button>
-              </div>
+              ) : null}
             </div>
           ) : null}
 

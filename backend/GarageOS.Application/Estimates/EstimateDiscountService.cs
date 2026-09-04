@@ -43,6 +43,18 @@ public sealed class EstimateDiscountService(
                 "This estimate has been superseded by a newer revision and can no longer be changed.");
         }
 
+        // P2-WP4 QA gate B1 / Owner Decision #3: a discount is only meaningful while the
+        // estimate is still "draft" -- once submitted (sent/pending_owner_approval) or
+        // decided by the customer (approved/partially_approved/rejected), the price the
+        // recipient is looking at must not silently change under them. Mirrors
+        // EstimateManagementService.ReplaceItemsAsync's identical draft-only gate; a
+        // re-quote goes through CreateRevisionAsync instead.
+        if (estimate.Status != "draft")
+        {
+            return ApplyDiscountResult.Failure(
+                "This estimate has already been submitted and can no longer be discounted directly. Create a new revision to change pricing.");
+        }
+
         var outcome = await businessRuleAuthorizer.AuthorizeDiscountAsync(estimate.GarageId, discountPercent, ct);
         if (!outcome.Succeeded)
         {

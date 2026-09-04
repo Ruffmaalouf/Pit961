@@ -175,6 +175,178 @@ public class EstimatesApiTests(IntegrationTestFixture fixture)
         Assert.Equal(400.00m, updated!.DiscountAmount);
     }
 
+    // ---- Locked states: P2-WP4 QA gate finding B1 / Owner Decision #3 ----------------
+    // A decided-or-in-flight estimate is never silently edited in place -- only "draft" may
+    // have its items/discount changed or be (re)submitted; a customer decision may only be
+    // recorded against "sent". Anything else routes through CreateRevisionAsync instead.
+
+    [Fact]
+    public async Task Discount_AlreadySentEstimate_IsRejected_NoWriteOccurs()
+    {
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
+        var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
+        var client = fixture.CreateClient();
+        var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 200m)); // below threshold
+        await client.SendAsync(Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/submit", token)); // -> "sent"
+
+        var request = Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/discount", token);
+        request.Content = JsonContent.Create(new ApplyDiscountRequest(10m));
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await using var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var stored = await db.Estimates.SingleAsync(e => e.Id == estimate.Id);
+        Assert.Equal(0m, stored.DiscountAmount);
+        Assert.Equal("sent", stored.Status);
+    }
+
+    [Fact]
+    public async Task ReplaceItems_AlreadySentEstimate_IsRejected_ItemsUnchanged()
+    {
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
+        var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
+        var client = fixture.CreateClient();
+        var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 200m));
+        await client.SendAsync(Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/submit", token)); // -> "sent"
+
+        var request = Authorized(HttpMethod.Put, $"/api/v1/estimates/{estimate.Id}/items", token);
+        request.Content = JsonContent.Create(new ReplaceEstimateItemsRequest([Item(5, 999m, "Sneaked-in item")]));
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await using var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var items = await db.EstimateItems.Where(i => i.EstimateId == estimate.Id).ToListAsync();
+        Assert.Single(items);
+        Assert.Equal(200m, items[0].UnitPrice);
+    }
+
+    [Fact]
+    public async Task Submit_AlreadySentEstimate_IsRejected_StatusUnchanged()
+    {
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
+        var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
+        var client = fixture.CreateClient();
+        var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 200m));
+        await client.SendAsync(Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/submit", token)); // -> "sent"
+
+        var response = await client.SendAsync(Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/submit", token));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await using var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var stored = await db.Estimates.SingleAsync(e => e.Id == estimate.Id);
+        Assert.Equal("sent", stored.Status);
+    }
+
+    [Fact]
+    public async Task CustomerApproval_AlreadyDecidedEstimate_IsRejected_DoesNotOverwritePriorDecision()
+    {
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
+        var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
+        var client = fixture.CreateClient();
+        var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 200m));
+        await client.SendAsync(Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/submit", token)); // -> "sent"
+
+        var firstApproval = Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/customer-approval", token);
+        firstApproval.Content = JsonContent.Create(new RecordCustomerApprovalRequest("approved", "in_person", "Jane"));
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(firstApproval)).StatusCode);
+
+        // A second, different decision against the same already-decided row must never
+        // silently overwrite the first -- no revision, no audit trail.
+        var secondApproval = Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/customer-approval", token);
+        secondApproval.Content = JsonContent.Create(new RecordCustomerApprovalRequest("rejected", "phone", "Someone else"));
+        var response = await client.SendAsync(secondApproval);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await using var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var stored = await db.Estimates.SingleAsync(e => e.Id == estimate.Id);
+        Assert.Equal("approved", stored.Status);
+        Assert.Equal("in_person", stored.ApprovalMethod);
+        Assert.Equal("Jane", stored.ApprovedByName);
+    }
+
+    [Fact]
+    public async Task CustomerApproval_NotYetSentEstimate_IsRejected()
+    {
+        // Recording a customer decision before the estimate has ever been sent (still
+        // "draft") is meaningless -- the customer cannot have decided on something they
+        // were never shown.
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
+        var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
+        var client = fixture.CreateClient();
+        var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 200m)); // still draft
+
+        var request = Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/customer-approval", token);
+        request.Content = JsonContent.Create(new RecordCustomerApprovalRequest("approved", "in_person", "Jane"));
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await using var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var stored = await db.Estimates.SingleAsync(e => e.Id == estimate.Id);
+        Assert.Equal("draft", stored.Status);
+    }
+
+    // ---- Customer decision allow-list: P2-WP4 QA gate finding B2 ---------------------
+    // `RecordCustomerApprovalRequest.Decision` is client input, never an authoritative
+    // Status value -- it must be rejected outright unless it is exactly one of the three
+    // real customer-decision outcomes. This is the single most direct approval-threshold
+    // bypass surface in the API: without this allow-list, any authenticated tenant role
+    // could set Status to any of the 7 DB-check-constraint-permitted values, including
+    // "pending_owner_approval"-adjacent values engineered to dodge the $500 threshold.
+
+    [Theory]
+    [InlineData("sent")]
+    [InlineData("pending_owner_approval")]
+    [InlineData("draft")]
+    [InlineData("superseded")]
+    [InlineData("not_a_real_status")]
+    public async Task CustomerApproval_DecisionOutsideAllowList_IsRejected_StatusUnchanged(string invalidDecision)
+    {
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
+        var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
+        var client = fixture.CreateClient();
+        var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 900m)); // above $500 threshold
+        await client.SendAsync(Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/submit", token)); // -> pending_owner_approval
+
+        var request = Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/customer-approval", token);
+        request.Content = JsonContent.Create(new RecordCustomerApprovalRequest(invalidDecision, "in_person", "Jane"));
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await using var db = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var stored = await db.Estimates.SingleAsync(e => e.Id == estimate.Id);
+        // Still pending_owner_approval -- an invalid decision must never bypass the $500
+        // owner-approval gate by routing Status somewhere else entirely.
+        Assert.Equal("pending_owner_approval", stored.Status);
+    }
+
+    [Theory]
+    [InlineData("approved")]
+    [InlineData("partially_approved")]
+    [InlineData("rejected")]
+    public async Task CustomerApproval_DecisionInAllowList_IsAccepted(string validDecision)
+    {
+        await fixture.ResetDatabaseAsync();
+        var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
+        var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
+        var client = fixture.CreateClient();
+        var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 200m));
+        await client.SendAsync(Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/submit", token));
+
+        var request = Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/customer-approval", token);
+        request.Content = JsonContent.Create(new RecordCustomerApprovalRequest(validDecision, "in_person", "Jane"));
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<EstimateDto>();
+        Assert.Equal(validDecision, updated!.Status);
+    }
+
     // ---- $500.00 / $500.01 approval threshold, Owner Decision #2 ---------------------
 
     [Fact]
@@ -355,40 +527,46 @@ public class EstimatesApiTests(IntegrationTestFixture fixture)
     // ---- Concurrency: real Postgres, real xmin, real compare-and-swap ----------------
 
     [Fact]
-    public async Task ConcurrentDiscount_SecondWriteWithStaleReadThrowsConflict_FirstWriteNotLost()
+    public async Task ConcurrentDiscount_TwoWritersRaceSameRow_SecondCommitThrowsConflict_FirstWriteNotLost()
     {
+        // P2-WP4 QA gate finding M1: the prior version of this test never actually raced --
+        // it applied one discount, then merely re-read the committed result. This version
+        // forces a genuine two-DbContext race against real PostgreSQL, exercising the real
+        // EF Core `xmin` optimistic-concurrency token (Estimate.IsRowVersion()) directly,
+        // the same mechanism EstimateMutationRepository.UpdateDiscountAsync relies on.
         await fixture.ResetDatabaseAsync();
         var (token, garageId, _) = await SeedAuthenticatedUserAsync(role: "owner");
         var job = await ResourceSeedHelpers.SeedJobAsync(fixture, garageId);
         var client = fixture.CreateClient();
         var estimate = await CreateEstimateViaApiAsync(client, token, job.Id, Item(1, 1000m));
 
-        // Actor A's discount genuinely commits first, changing the row's xmin.
-        var firstRequest = Authorized(HttpMethod.Post, $"/api/v1/estimates/{estimate.Id}/discount", token);
-        firstRequest.Content = JsonContent.Create(new ApplyDiscountRequest(10m));
-        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(firstRequest)).StatusCode);
+        // Two independent DbContexts each load their OWN tracked copy of the SAME row
+        // BEFORE either writer commits -- mirrors two concurrent HTTP requests each running
+        // EstimateDiscountService.ApplyDiscountAsync, whose own
+        // IEstimateMutationRepository.UpdateDiscountAsync does an identical tracked
+        // SingleAsync fetch internally. Both trackedA and trackedB capture the SAME
+        // pre-race `xmin`.
+        await using var dbA = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        await using var dbB = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var trackedA = await dbA.Estimates.SingleAsync(e => e.Id == estimate.Id);
+        var trackedB = await dbB.Estimates.SingleAsync(e => e.Id == estimate.Id);
 
-        // Actor B's write is driven directly against a real EstimateMutationRepository
-        // holding a pre-commit-era row (fetched before A's write), the same construction
-        // pattern JobsApiTests' stale-write tests use, since forcing two real HTTP
-        // requests into this exact interleaving isn't reliably reproducible. Real
-        // Postgres, real xmin: this must throw, never silently overwrite A's discount.
-        await using var staleDb = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
-        var staleRepo = new GarageOS.Infrastructure.Data.Estimates.EstimateMutationRepository(staleDb);
-        // Force a tracked, pre-A's-write instance into staleDb's change tracker by reading
-        // it before A's write is visible to THIS context (a fresh context always sees
-        // committed state, so instead we simulate the race directly: read now (post-A),
-        // then attempt to write with a manually rolled-back xmin expectation is not
-        // possible via the public repository surface -- so this test instead proves the
-        // realistic surface: two real overlapping SaveChangesAsync calls sharing one
-        // loaded instance never happens in this codebase's per-request DbContext model,
-        // and the repository's SingleAsync-per-call pattern is what actually prevents the
-        // lost-update class of bug. The stale-status equivalent (a real compare-and-swap
-        // rejection) is exercised precisely by SupersededEstimate_RejectsDiscountSubmitAndCustomerApproval
-        // and the CreateRevisionAsync race test below, which DO force a genuine two-write
-        // race against the same row.
-        var current = await staleRepo.FindByIdAsync(estimate.Id);
-        Assert.Equal(100.00m, current!.DiscountAmount); // A's write landed, 1000*10%
+        // Writer A commits first -- a real 10% discount, bumping the row's xmin in Postgres.
+        trackedA.DiscountAmount = 100.00m;
+        trackedA.Total = 900.00m;
+        await dbA.SaveChangesAsync();
+
+        // Writer B still holds the PRE-A xmin captured above (its own SingleAsync ran
+        // before A's SaveChangesAsync committed). Its write must be rejected outright, not
+        // silently overwrite or merge with A's already-committed discount -- the real
+        // Postgres/EF optimistic-concurrency mechanism, not a simulated failure.
+        trackedB.DiscountAmount = 200.00m;
+        trackedB.Total = 800.00m;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => dbB.SaveChangesAsync());
+
+        await using var verifyDb = fixture.CreateAppDbContext(new FakeCurrentTenant { GarageId = garageId });
+        var stored = await verifyDb.Estimates.SingleAsync(e => e.Id == estimate.Id);
+        Assert.Equal(100.00m, stored.DiscountAmount); // A's write survived; B's was rejected, never lost or merged
     }
 
     [Fact]

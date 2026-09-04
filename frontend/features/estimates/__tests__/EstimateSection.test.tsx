@@ -244,6 +244,42 @@ describe('EstimateSection', () => {
     expect(await screen.findByTestId('customer-approval-status')).toHaveTextContent('whatsapp');
   });
 
+  it('hides items/discount editing once the estimate is no longer draft (P2-WP4 QA gate B1)', async () => {
+    mockedList.mockResolvedValue([makeEstimate({ status: 'sent' })]);
+    render(<EstimateSection jobId="j-1" />);
+
+    await screen.findByTestId(`estimate-e-1`);
+    expect(screen.queryByTestId('edit-items')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('discount-percent-input')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('apply-discount')).not.toBeInTheDocument();
+  });
+
+  it('only offers the customer-decision form while the estimate is "sent", never before or after a decision', async () => {
+    // Not yet sent -- pending_owner_approval -- recording a decision is not offered.
+    mockedList.mockResolvedValue([makeEstimate({ status: 'pending_owner_approval', subtotal: 900, total: 900 })]);
+    setRole('owner');
+    render(<EstimateSection jobId="j-1" />);
+    await screen.findByTestId('customer-approval-section');
+    expect(screen.queryByTestId('customer-decision-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('record-customer-approval')).not.toBeInTheDocument();
+    cleanup();
+
+    // Already decided -- the recorded summary shows, but the form to record another
+    // decision over it does not (that would silently overwrite the customer's real answer).
+    mockedList.mockResolvedValue([
+      makeEstimate({
+        status: 'approved',
+        approvalMethod: 'whatsapp',
+        approvedByName: 'Jane',
+        approvedAt: '2026-01-02T00:00:00.000Z',
+      }),
+    ]);
+    render(<EstimateSection jobId="j-1" />);
+    expect(await screen.findByTestId('customer-approval-status')).toHaveTextContent('whatsapp');
+    expect(screen.queryByTestId('customer-decision-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('record-customer-approval')).not.toBeInTheDocument();
+  });
+
   it('creates a new revision, superseding the current one', async () => {
     mockedList.mockResolvedValue([makeEstimate({ status: 'sent' })]);
     mockedCreateRevision.mockResolvedValue(

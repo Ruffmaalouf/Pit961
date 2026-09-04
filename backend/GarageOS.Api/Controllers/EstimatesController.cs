@@ -69,6 +69,7 @@ public sealed class EstimatesController(
         {
             EstimateMutationOutcome.NotFound => NotFound(),
             EstimateMutationOutcome.Superseded => Conflict(new { error = "This estimate has been superseded by a newer revision and can no longer be changed." }),
+            EstimateMutationOutcome.Locked => Conflict(new { error = r.ErrorMessage }),
             EstimateMutationOutcome.Conflict => Conflict(new { error = "This estimate was updated by someone else. Please refresh and try again." }),
             _ => Ok(await ToDtoAsync(r.Estimate!, ct)),
         };
@@ -123,8 +124,10 @@ public sealed class EstimatesController(
 
         return result.Outcome switch
         {
+            EstimateMutationOutcome.InvalidDecision => BadRequest(new { error = result.ErrorMessage }),
             EstimateMutationOutcome.NotFound => NotFound(),
             EstimateMutationOutcome.Superseded => Conflict(new { error = "This estimate has been superseded by a newer revision and can no longer be changed." }),
+            EstimateMutationOutcome.Locked => Conflict(new { error = result.ErrorMessage }),
             EstimateMutationOutcome.Conflict => Conflict(new { error = "This estimate was updated by someone else. Please refresh and try again." }),
             _ => Ok(await ToDtoAsync(result.Estimate!, ct)),
         };

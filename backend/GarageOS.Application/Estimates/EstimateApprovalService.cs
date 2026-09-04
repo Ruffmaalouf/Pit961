@@ -45,6 +45,16 @@ public sealed class EstimateApprovalService(
                 "This estimate has been superseded by a newer revision and can no longer be changed.");
         }
 
+        // P2-WP4 QA gate B1 / Owner Decision #3: "submit" only makes sense once, moving a
+        // "draft" out to sent/pending_owner_approval. Re-running it against an estimate
+        // that has already been submitted or decided would silently re-route Status again
+        // with no revision and no audit trail -- exactly the class of bug B1 flagged.
+        if (estimate.Status != "draft")
+        {
+            return EstimateApprovalRoutingResult.Failure(
+                "This estimate has already been submitted and cannot be submitted again.");
+        }
+
         // Always reads Subtotal (pre-discount), never Total -- 06_permission_matrix.md
         // Special Rule 3.
         var outcome = await businessRuleAuthorizer.AuthorizeEstimateApprovalThresholdAsync(

@@ -10,17 +10,35 @@ public sealed record EstimateItemFields(
 
 public sealed record CreateEstimateFields(Guid JobId, string Type, string? Notes, IReadOnlyList<EstimateItemFields> Items);
 
-public enum EstimateMutationOutcome { Ok, JobNotFound, ParentEstimateNotFound, Superseded, Conflict, NotFound }
+public enum EstimateMutationOutcome
+{
+    Ok, JobNotFound, ParentEstimateNotFound, Superseded, Conflict, NotFound,
+
+    /// The estimate exists, is not superseded, but is no longer in a state this mutation
+    /// may touch (P2-WP4 QA gate B1 / Owner Decision #3) -- e.g. items/discount can only be
+    /// changed while still "draft"; a customer decision can only be recorded while "sent".
+    /// Distinct from Superseded so the message can say exactly what's wrong ("already
+    /// submitted -- create a new revision" vs "superseded by a newer revision"), while both
+    /// map to the same "this cannot be changed in place" HTTP outcome per endpoint.
+    Locked,
+
+    /// RecordCustomerApprovalAsync's `decision` failed the {approved, partially_approved,
+    /// rejected} allow-list (P2-WP4 QA gate B2) -- never reaches the repository, never
+    /// touches Estimate.Status.
+    InvalidDecision,
+}
 
 public sealed class EstimateMutationResult
 {
     public EstimateMutationOutcome Outcome { get; }
     public Estimate? Estimate { get; }
+    public string? ErrorMessage { get; }
 
-    private EstimateMutationResult(EstimateMutationOutcome outcome, Estimate? estimate)
+    private EstimateMutationResult(EstimateMutationOutcome outcome, Estimate? estimate, string? errorMessage = null)
     {
         Outcome = outcome;
         Estimate = estimate;
+        ErrorMessage = errorMessage;
     }
 
     public static EstimateMutationResult Ok(Estimate estimate) => new(EstimateMutationOutcome.Ok, estimate);
@@ -29,6 +47,8 @@ public sealed class EstimateMutationResult
     public static EstimateMutationResult Superseded() => new(EstimateMutationOutcome.Superseded, null);
     public static EstimateMutationResult Conflict() => new(EstimateMutationOutcome.Conflict, null);
     public static EstimateMutationResult NotFound() => new(EstimateMutationOutcome.NotFound, null);
+    public static EstimateMutationResult Locked(string reason) => new(EstimateMutationOutcome.Locked, null, reason);
+    public static EstimateMutationResult InvalidDecision(string reason) => new(EstimateMutationOutcome.InvalidDecision, null, reason);
 }
 
 /// <summary>
@@ -96,6 +116,19 @@ public sealed class EstimateManagementService(
             return EstimateMutationResult.Superseded();
         }
 
+        // P2-WP4 QA gate B1 / Owner Decision #3: item edits are only meaningful while the
+        // estimate is still "draft" -- once submitted (sent/pending_owner_approval) or
+        // decided by the customer (approved/partially_approved/rejected), the numbers the
+        // recipient is looking at must not silently change under them. A re-quote goes
+        // through CreateRevisionAsync instead, which creates a fresh, independently
+        // trackable "draft" and supersedes this one. Mirrors
+        // EstimateDiscountService.ApplyDiscountAsync's identical draft-only gate.
+        if (existing.Status != "draft")
+        {
+            return EstimateMutationResult.Locked(
+                "This estimate has already been submitted and its items can no longer be edited directly. Create a new revision to change items.");
+        }
+
         try
         {
             var updated = await estimates.ReplaceItemsAsync(estimateId, itemFields.Select(ToItem).ToList(), ct);
@@ -107,9 +140,25 @@ public sealed class EstimateManagementService(
         }
     }
 
+    private static readonly HashSet<string> AllowedCustomerDecisions =
+        new(StringComparer.Ordinal) { "approved", "partially_approved", "rejected" };
+
     public async Task<EstimateMutationResult> RecordCustomerApprovalAsync(
         Guid estimateId, string decision, string approvalMethod, string? approvedByName, CancellationToken ct = default)
     {
+        // P2-WP4 QA gate B2: `decision` is client input, not an authoritative Status value
+        // -- it must be exactly one of the three real customer-decision outcomes before it
+        // is allowed anywhere near Estimate.Status. Checked before the estimate lookup so a
+        // garbage value is rejected the same way regardless of which estimate ID it's
+        // pointed at (mirrors JobStatusService.TransitionAsync's not-found-before-role
+        // ordering rationale: don't leak state through which check fires first for a
+        // clearly-invalid request).
+        if (!AllowedCustomerDecisions.Contains(decision))
+        {
+            return EstimateMutationResult.InvalidDecision(
+                "decision must be one of: approved, partially_approved, rejected.");
+        }
+
         var existing = await estimates.FindByIdAsync(estimateId, ct);
         if (existing is null)
         {
@@ -121,6 +170,20 @@ public sealed class EstimateManagementService(
         if (existing.Status == "superseded")
         {
             return EstimateMutationResult.Superseded();
+        }
+
+        // P2-WP4 QA gate B1 / Owner Decision #3: a customer decision only makes sense
+        // against an estimate that has actually been sent -- not a "draft" no one has seen
+        // yet, not one still "pending_owner_approval" (the Owner hasn't cleared it to go
+        // out), and not one that already carries an earlier customer decision
+        // (approved/partially_approved/rejected) -- recording a second, different decision
+        // over an existing one would silently overwrite history with no revision and no
+        // audit trail. A changed decision after the fact goes through CreateRevisionAsync
+        // (re-quote) like any other post-decision change.
+        if (existing.Status != "sent")
+        {
+            return EstimateMutationResult.Locked(
+                "This estimate is not awaiting a customer decision (it must be in \"sent\" status).");
         }
 
         // Customer approval and Owner approval are separate concepts (P2-WP4 order):
