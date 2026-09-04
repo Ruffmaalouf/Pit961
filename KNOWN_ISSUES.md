@@ -547,3 +547,33 @@ password is already public in `frontend/e2e/fixtures.ts`'s own source.
 **Status: RESOLVED.** `trace: 'off'` in `playwright.config.ts` (commit `a9833fd`).
 `screenshot: 'only-on-failure'` already covers CI debugging needs without this exposure.
 **Owner input needed?** No.
+
+### KI-20 — Raw string literal masking gap in SourceScanUtilities.MaskLiteralsAndComments (MEDIUM, tracked, non-blocking)
+
+**Severity:** MEDIUM. Flagged by Security Reviewer during P2-WP4's independent security
+gate (2026-09-04), re-running the same architecture-test safety net KI-17/KI-16 already
+hardened.
+**Affects:** `GarageOS.Tests.Unit/Architecture/SourceScanUtilities.cs`, shared by
+`EstimateMutationBoundaryTests.cs`, `JobMutationBoundaryTests.cs`, and any other
+source-scan boundary test built on the same masking helper.
+**Description:** `MaskLiteralsAndComments` does not correctly recognize C# raw string
+literals (`"""..."""`, including interpolated `$"""..."""`). On encountering the opening
+`"""`, it treats the first `"` `"` pair as an ordinary interpolated string, closes it
+immediately, then starts a second "string" at the third `"` that terminates prematurely
+at the first newline inside the raw string body — leaving the remainder of that raw
+string's content **unmasked** and passed through to every downstream text-pattern check
+as if it were live code, for the rest of that file's scan. The codebase already contains
+raw string literals today (`JobMutationRepository.cs`'s `$"""UPDATE garage_sequences...`
+and `ResendEmailService.cs`), though neither file is currently scanned by
+`EstimateMutationBoundaryTests`' `Estimates.`/`Set<Estimate>()` anchors, so there is no
+live bypass today — confirmed independently by the Security Reviewer via direct code
+read of every Estimate-mutation-path file, finding no alternate mutation route.
+**Status: OPEN, non-blocking.** Not CRITICAL/HIGH: no reviewed file currently exploits
+the gap, and the "single mutation path" guarantee holds by direct inspection today, not
+only by this test. Risk is forward-looking — a future change adding a raw string literal
+to any file a boundary test scans could hide a genuine bypass introduced in that same
+change. Routed to `backend-engineer`: fix `SourceScanUtilities` to correctly
+mask/hole-handle `"""`/`$"""` raw string literals (mirroring KI-17's hole-aware fix for
+ordinary interpolated strings), or fail loud when one is encountered, then re-review with
+`security-reviewer`.
+**Owner input needed?** No.
